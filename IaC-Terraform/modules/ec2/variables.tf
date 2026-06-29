@@ -1,59 +1,37 @@
 variable "project_name" {
-  description = "Nombre del proyecto"
+  description = "Nombre del proyecto utilizado para nombrar el Bastion Host."
   type        = string
 }
 
-variable "instance_name" {
-  description = "Nombre de la instancia"
+variable "environment" {
+  description = "Ambiente donde se despliega la infraestructura."
   type        = string
 }
 
-variable "ami_id" {
-  description = "AMI de la instancia"
+variable "public_subnet_id" {
+  description = "ID de la subnet pública donde se desplegará el Bastion Host."
+  type        = string
+}
+
+variable "bastion_security_group_id" {
+  description = "ID del Security Group asociado al Bastion Host."
   type        = string
 }
 
 variable "instance_type" {
-  description = "Tipo de instancia"
+  description = "Tipo de instancia EC2 utilizado para el Bastion Host."
   type        = string
   default     = "t3.micro"
 }
 
-variable "subnet_id" {
-  description = "Subnet donde se desplegará la instancia"
-  type        = string
-}
-
-variable "security_group_ids" {
-  description = "Lista de Security Groups"
-  type        = list(string)
-}
-
 variable "key_name" {
-  description = "Nombre del Key Pair"
+  description = "Nombre del Key Pair utilizado para acceso SSH al Bastion Host."
   type        = string
-}
-
-variable "associate_public_ip" {
-  description = "Asignar IP pública"
-  type        = bool
-  default     = true
+  default     = "vockey"
 }
 
 variable "root_volume_size" {
-  description = "Tamaño del disco raíz"
+  description = "Tamaño en GB del disco raíz del Bastion Host."
   type        = number
   default     = 20
-}
-
-variable "root_volume_type" {
-  description = "Tipo de volumen"
-  type        = string
-  default     = "gp3"
-}
-
-variable "tags" {
-  description = "Tags adicionales"
-  type        = map(string)
-  default     = {}
 }
