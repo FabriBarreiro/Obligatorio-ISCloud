@@ -1,5 +1,3 @@
-
-
 variable "project_name" {
   description = "Nombre del proyecto utilizado para nombrar los recursos."
   type        = string
@@ -99,4 +97,10 @@ variable "cluster_addons" {
     "kube-proxy",
     "aws-ebs-csi-driver"
   ]
+}
+
+variable "eks_public_access_cidrs" {
+  description = "CIDRs permitidos para acceder al endpoint público del cluster EKS."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
 }

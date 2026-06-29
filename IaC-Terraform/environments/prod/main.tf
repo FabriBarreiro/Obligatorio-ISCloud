@@ -1,5 +1,3 @@
-
-
 module "vpc" {
   source = "../../modules/vpc"
 
@@ -91,6 +89,7 @@ module "eks" {
   kubernetes_version            = var.kubernetes_version
   private_subnet_ids            = module.subnets.private_subnet_ids
   eks_cluster_security_group_id = module.security_groups.eks_cluster_security_group_id
+  eks_public_access_cidrs       = var.eks_public_access_cidrs
   eks_nodes_security_group_id   = module.security_groups.eks_nodes_security_group_id
   key_name                      = var.key_name
   node_instance_types           = var.node_instance_types
