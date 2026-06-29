@@ -100,7 +100,7 @@ module "eks" {
 
 ## Consideraciones
 
-- Se utiliza `LabRole` porque el entorno AWS Academy limita la creación y administración de roles IAM personalizados.
+- Se utiliza `LabEksClusterRole` porque el entorno AWS Academy limita la creación y administración de roles IAM personalizados.
 - Los worker nodes se ubican en subnets privadas para reducir la exposición directa a Internet.
 - El acceso administrativo al cluster se puede realizar directamente desde el equipo local porque el endpoint público está habilitado.
 - El Key Pair utilizado por defecto es `vockey`, provisto por AWS Academy.
