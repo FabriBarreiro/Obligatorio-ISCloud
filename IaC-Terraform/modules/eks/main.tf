@@ -1,9 +1,9 @@
 data "aws_iam_role" "cluster_service_role" {
-  name = "LabRole"
+  name = "LabEksClusterRole"
 }
 
 data "aws_iam_role" "node_group_role" {
-  name = "LabRole"
+  name = "LabEksClusterRole"
 }
 
 resource "aws_eks_cluster" "eks_cluster" {
