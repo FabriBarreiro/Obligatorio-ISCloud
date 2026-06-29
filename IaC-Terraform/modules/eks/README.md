@@ -1,10 +1,8 @@
-
-
 # Módulo EKS
 
 Este módulo crea el cluster Amazon EKS utilizado para ejecutar la aplicación en Kubernetes.
 
-El diseño despliega el control plane de EKS y los worker nodes dentro de subnets privadas. El acceso al endpoint del cluster queda configurado de forma privada, por lo que la administración se realiza desde recursos dentro de la VPC, como el Bastion Host.
+El diseño despliega el control plane de EKS y los worker nodes dentro de subnets privadas. El endpoint del cluster queda configurado con acceso privado y público para facilitar la administración desde el equipo local durante el laboratorio.
 
 ## Recursos creados
 
@@ -29,10 +27,13 @@ El endpoint del cluster queda configurado de la siguiente forma:
 
 ```hcl
 endpoint_private_access = true
-endpoint_public_access  = false
+endpoint_public_access  = true
+public_access_cidrs     = ["0.0.0.0/0"]
 ```
 
-Esto significa que la API de Kubernetes solo es accesible desde dentro de la VPC. Para administrar el cluster con `kubectl`, se debe acceder desde el Bastion Host o desde otro recurso con conectividad privada hacia la VPC.
+Esto significa que la API de Kubernetes es accesible desde dentro de la VPC y también desde Internet. Esta configuración permite administrar el cluster directamente desde el equipo local usando `aws eks update-kubeconfig` y `kubectl`.
+
+Aunque el endpoint público queda accesible desde cualquier origen, la administración del cluster sigue requiriendo credenciales válidas de AWS/IAM. En un entorno productivo, este acceso debería restringirse a IPs administrativas específicas mediante `public_access_cidrs`.
 
 ## Add-ons instalados
 
@@ -54,6 +55,7 @@ Por defecto se instalan los siguientes add-ons administrados de EKS:
 | `kubernetes_version` | `string` | Versión de Kubernetes utilizada por el cluster |
 | `private_subnet_ids` | `list(string)` | IDs de las subnets privadas donde se desplegarán el cluster y los nodos |
 | `eks_cluster_security_group_id` | `string` | ID del Security Group asociado al control plane de EKS |
+| `eks_public_access_cidrs` | `list(string)` | CIDRs permitidos para acceder al endpoint público del cluster EKS |
 | `eks_nodes_security_group_id` | `string` | ID del Security Group asociado a los worker nodes |
 | `key_name` | `string` | Nombre del Key Pair utilizado para acceso SSH a los nodos |
 | `node_instance_types` | `list(string)` | Tipos de instancia EC2 utilizados por los worker nodes |
@@ -85,6 +87,7 @@ module "eks" {
   kubernetes_version            = "1.29"
   private_subnet_ids            = module.subnets.private_subnet_ids
   eks_cluster_security_group_id = module.security_groups.eks_cluster_security_group_id
+  eks_public_access_cidrs       = ["0.0.0.0/0"]
   eks_nodes_security_group_id   = module.security_groups.eks_nodes_security_group_id
   key_name                      = "vockey"
 
@@ -99,7 +102,7 @@ module "eks" {
 
 - Se utiliza `LabRole` porque el entorno AWS Academy limita la creación y administración de roles IAM personalizados.
 - Los worker nodes se ubican en subnets privadas para reducir la exposición directa a Internet.
-- El acceso administrativo al cluster se realiza desde el Bastion Host.
+- El acceso administrativo al cluster se puede realizar directamente desde el equipo local porque el endpoint público está habilitado.
 - El Key Pair utilizado por defecto es `vockey`, provisto por AWS Academy.
 - El add-on `aws-ebs-csi-driver` permite utilizar almacenamiento persistente con EBS en caso de que la aplicación o servicios auxiliares lo requieran.
-- En caso de problemas para administrar el cluster durante el laboratorio, se puede habilitar temporalmente `endpoint_public_access = true`, documentando el cambio como una excepción operativa.
+- Para simplificar el laboratorio, `public_access_cidrs` queda configurado como `["0.0.0.0/0"]`; en producción debería limitarse a IPs administrativas conocidas.

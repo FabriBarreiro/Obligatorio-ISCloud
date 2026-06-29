@@ -21,9 +21,16 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
+
 variable "eks_cluster_security_group_id" {
   description = "ID del Security Group adicional asociado al control plane del cluster EKS."
   type        = string
+}
+
+variable "eks_public_access_cidrs" {
+  description = "CIDRs permitidos para acceder al endpoint público del cluster EKS."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
 }
 
 variable "eks_nodes_security_group_id" {
