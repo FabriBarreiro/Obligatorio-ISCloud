@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 module "vpc" {
   source = "../../modules/vpc"
 
@@ -104,7 +106,7 @@ module "eks" {
   project_name                  = var.project_name
   cluster_name                  = var.cluster_name
   kubernetes_version            = var.kubernetes_version
-  eks_role_arn                  = var.eks_role_arn
+  eks_role_arn                  = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.eks_role_name}"
   private_subnet_ids            = module.subnets.private_subnet_ids
   eks_cluster_security_group_id = module.security_groups.eks_cluster_security_group_id
   eks_public_access_cidrs       = var.eks_public_access_cidrs

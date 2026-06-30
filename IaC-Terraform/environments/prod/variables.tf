@@ -70,9 +70,10 @@ variable "kubernetes_version" {
   default     = "1.34"
 }
 
-variable "eks_role_arn" {
-  description = "ARN del rol IAM utilizado por el cluster EKS y los worker nodes."
+variable "eks_role_name" {
+  description = "Nombre del rol IAM utilizado por el cluster EKS y los worker nodes. En AWS Academy se utiliza LabRole."
   type        = string
+  default     = "LabRole"
 }
 
 variable "node_instance_types" {
