@@ -29,20 +29,6 @@ resource "aws_eks_cluster" "eks_cluster" {
   }
 }
 
-data "tls_certificate" "eks_oidc" {
-  url = aws_eks_cluster.eks_cluster.identity[0].oidc[0].issuer
-}
-
-resource "aws_iam_openid_connect_provider" "eks_oidc" {
-  url             = aws_eks_cluster.eks_cluster.identity[0].oidc[0].issuer
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.eks_oidc.certificates[0].sha1_fingerprint]
-
-  tags = {
-    Name = "${var.cluster_name}-oidc-provider"
-  }
-}
-
 resource "aws_launch_template" "eks_nodes_launch_template" {
   name_prefix = "${var.cluster_name}-nodes-"
 
@@ -104,12 +90,10 @@ resource "aws_eks_addon" "eks_addons" {
 
   cluster_name                = aws_eks_cluster.eks_cluster.name
   addon_name                  = each.value
-  service_account_role_arn    = each.value == "aws-ebs-csi-driver" ? data.aws_iam_role.cluster_service_role.arn : null
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 
   depends_on = [
-    aws_eks_node_group.eks_node_group,
-    aws_iam_openid_connect_provider.eks_oidc
+    aws_eks_node_group.eks_node_group
   ]
 }
