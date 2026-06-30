@@ -16,6 +16,7 @@ module "subnets" {
   availability_zones         = var.availability_zones
   public_subnet_cidr_blocks  = var.public_subnet_cidr_blocks
   private_subnet_cidr_blocks = var.private_subnet_cidr_blocks
+  data_subnet_cidr_blocks    = var.data_subnet_cidr_blocks
 }
 
 module "igw" {
@@ -48,6 +49,7 @@ module "route_tables" {
   nat_gateway_id      = module.natgw.nat_gateway_id
   public_subnet_ids   = module.subnets.public_subnet_ids
   private_subnet_ids  = module.subnets.private_subnet_ids
+  data_subnet_ids     = module.subnets.data_subnet_ids
 }
 
 module "security_groups" {

@@ -40,6 +40,12 @@ variable "private_subnet_cidr_blocks" {
   default     = ["10.0.3.0/24", "10.0.4.0/24"]
 }
 
+variable "data_subnet_cidr_blocks" {
+  description = "Bloques CIDR de las subnets privadas de datos."
+  type        = list(string)
+  default     = ["10.0.5.0/24", "10.0.6.0/24"]
+}
+
 variable "key_name" {
   description = "Nombre del Key Pair utilizado para acceso SSH a las instancias EC2."
   type        = string
