@@ -12,3 +12,11 @@ variable "vpc_id" {
   description = "ID de la VPC donde se crearán los Security Groups del bastion, cluster EKS y worker nodes."
   type        = string
 }
+
+variable "cluster_name" {
+
+  description = "Nombre del cluster EKS utilizado para tags de Kubernetes."
+
+  type = string
+
+}
