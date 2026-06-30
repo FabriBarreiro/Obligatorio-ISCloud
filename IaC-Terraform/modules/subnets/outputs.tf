@@ -10,6 +10,11 @@ output "private_subnet_ids" {
   value       = aws_subnet.private_subnets[*].id
 }
 
+output "data_subnet_ids" {
+  description = "IDs de las subnets privadas de datos creadas."
+  value       = aws_subnet.data_subnets[*].id
+}
+
 output "public_subnet_cidr_blocks" {
   description = "Bloques CIDR de las subnets públicas creadas."
   value       = aws_subnet.public_subnets[*].cidr_block
@@ -18,4 +23,9 @@ output "public_subnet_cidr_blocks" {
 output "private_subnet_cidr_blocks" {
   description = "Bloques CIDR de las subnets privadas creadas."
   value       = aws_subnet.private_subnets[*].cidr_block
+}
+
+output "data_subnet_cidr_blocks" {
+  description = "Bloques CIDR de las subnets privadas de datos creadas."
+  value       = aws_subnet.data_subnets[*].cidr_block
 }

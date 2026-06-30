@@ -1,5 +1,3 @@
-
-
 variable "project_name" {
   description = "Nombre del proyecto utilizado para nombrar los recursos."
   type        = string
@@ -32,5 +30,10 @@ variable "public_subnet_cidr_blocks" {
 
 variable "private_subnet_cidr_blocks" {
   description = "Lista de bloques CIDR para las subnets privadas."
+  type        = list(string)
+}
+
+variable "data_subnet_cidr_blocks" {
+  description = "Lista de bloques CIDR para las subnets privadas de datos."
   type        = list(string)
 }
