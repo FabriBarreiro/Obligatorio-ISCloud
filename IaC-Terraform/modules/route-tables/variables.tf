@@ -32,3 +32,8 @@ variable "private_subnet_ids" {
   description = "IDs de las subnets privadas que se asociarán a la tabla de rutas privada."
   type        = list(string)
 }
+
+variable "data_subnet_ids" {
+  description = "IDs de las subnets privadas de datos que se asociarán a la tabla de rutas privada."
+  type        = list(string)
+}
