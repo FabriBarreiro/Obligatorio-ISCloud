@@ -90,23 +90,28 @@ output "eks_cluster_addons" {
   value       = module.eks.cluster_addons
 }
 
-output "redis_cluster_id" {
-  description = "ID del cluster Redis de ElastiCache."
-  value       = module.elasticache.redis_cluster_id
+output "redis_replication_group_id" {
+  description = "ID del replication group Redis de ElastiCache."
+  value       = module.elasticache.redis_replication_group_id
 }
 
-output "redis_endpoint" {
-  description = "Endpoint DNS del cluster Redis de ElastiCache."
-  value       = module.elasticache.redis_endpoint
+output "redis_primary_endpoint" {
+  description = "Endpoint primario DNS del replication group Redis de ElastiCache."
+  value       = module.elasticache.redis_primary_endpoint
+}
+
+output "redis_reader_endpoint" {
+  description = "Endpoint de lectura DNS del replication group Redis de ElastiCache."
+  value       = module.elasticache.redis_reader_endpoint
 }
 
 output "redis_port" {
-  description = "Puerto TCP del cluster Redis de ElastiCache."
+  description = "Puerto TCP del replication group Redis de ElastiCache."
   value       = module.elasticache.redis_port
 }
 
 output "redis_connection_string" {
-  description = "Cadena de conexion host:puerto para Redis."
+  description = "Cadena de conexion host:puerto hacia el endpoint primario de Redis."
   value       = module.elasticache.redis_connection_string
 }
 
