@@ -78,11 +78,34 @@ resource "aws_eks_node_group" "eks_node_group" {
 
   tags = {
     Name = "${var.cluster_name}-node-group"
+
+    "k8s.io/cluster-autoscaler/enabled"             = "true"
+    "k8s.io/cluster-autoscaler/${var.cluster_name}" = "owned"
   }
 
   depends_on = [
     aws_eks_cluster.eks_cluster
   ]
+}
+
+resource "aws_autoscaling_group_tag" "cluster_autoscaler_enabled" {
+  autoscaling_group_name = aws_eks_node_group.eks_node_group.resources[0].autoscaling_groups[0].name
+
+  tag {
+    key                 = "k8s.io/cluster-autoscaler/enabled"
+    value               = "true"
+    propagate_at_launch = false
+  }
+}
+
+resource "aws_autoscaling_group_tag" "cluster_autoscaler_cluster" {
+  autoscaling_group_name = aws_eks_node_group.eks_node_group.resources[0].autoscaling_groups[0].name
+
+  tag {
+    key                 = "k8s.io/cluster-autoscaler/${var.cluster_name}"
+    value               = "owned"
+    propagate_at_launch = false
+  }
 }
 
 resource "aws_eks_addon" "eks_addons" {
