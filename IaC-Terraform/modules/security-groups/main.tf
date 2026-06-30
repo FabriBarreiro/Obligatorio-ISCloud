@@ -112,6 +112,14 @@ resource "aws_security_group" "eks_nodes_sg" {
   }
 
   ingress {
+    description     = "Permite comunicacion del control plane de EKS hacia kubelet en los worker nodes"
+    from_port       = 10250
+    to_port         = 10250
+    protocol        = "tcp"
+    security_groups = [aws_security_group.eks_cluster_sg.id]
+  }
+
+  ingress {
     description = "Permite trafico NodePort para publicacion de servicios Kubernetes"
     from_port   = 30000
     to_port     = 32767
@@ -146,4 +154,14 @@ resource "aws_security_group" "eks_nodes_sg" {
   tags = {
     Name = "${var.project_name}-${var.environment}-eks-nodes-sg"
   }
+}
+
+resource "aws_security_group_rule" "eks_nodes_to_cluster_https" {
+  description              = "Permite comunicacion HTTPS desde los worker nodes hacia el endpoint privado de EKS"
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.eks_cluster_sg.id
+  source_security_group_id = aws_security_group.eks_nodes_sg.id
 }
