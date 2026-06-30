@@ -1,14 +1,11 @@
-data "aws_iam_role" "cluster_service_role" {
-  name = "LabRole"
-}
 
-data "aws_iam_role" "node_group_role" {
-  name = "LabRole"
+locals {
+  lab_role_arn = "arn:aws:iam::466395927784:role/LabRole"
 }
 
 resource "aws_eks_cluster" "eks_cluster" {
   name     = var.cluster_name
-  role_arn = data.aws_iam_role.cluster_service_role.arn
+  role_arn = local.lab_role_arn
   version  = var.kubernetes_version
 
   access_config {
@@ -29,11 +26,37 @@ resource "aws_eks_cluster" "eks_cluster" {
   }
 }
 
+resource "aws_launch_template" "eks_nodes_launch_template" {
+  name_prefix = "${var.cluster_name}-nodes-"
+
+  vpc_security_group_ids = [
+    var.eks_nodes_security_group_id,
+    var.eks_cluster_security_group_id
+  ]
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = {
+      Name = "${var.cluster_name}-node"
+    }
+  }
+
+  tags = {
+    Name = "${var.cluster_name}-nodes-lt"
+  }
+}
 
 resource "aws_eks_node_group" "eks_node_group" {
   cluster_name    = aws_eks_cluster.eks_cluster.name
   node_group_name = "${var.cluster_name}-node-group"
-  node_role_arn   = data.aws_iam_role.node_group_role.arn
+  node_role_arn   = local.lab_role_arn
   subnet_ids      = var.private_subnet_ids
 
   instance_types = var.node_instance_types
@@ -49,6 +72,11 @@ resource "aws_eks_node_group" "eks_node_group" {
     max_unavailable = 1
   }
 
+  launch_template {
+    id      = aws_launch_template.eks_nodes_launch_template.id
+    version = aws_launch_template.eks_nodes_launch_template.latest_version
+  }
+
   tags = {
     Name = "${var.cluster_name}-node-group"
 
@@ -57,7 +85,8 @@ resource "aws_eks_node_group" "eks_node_group" {
   }
 
   depends_on = [
-    aws_eks_cluster.eks_cluster
+    aws_eks_cluster.eks_cluster,
+    aws_launch_template.eks_nodes_launch_template
   ]
 }
 

@@ -111,6 +111,14 @@ resource "aws_security_group" "eks_nodes_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "Permite trafico desde ALB hacia pods de grafana publicados por Ingress"
+    from_port   = 3000
+    to_port     = 3000
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
   egress {
     description = "Permite salida desde los worker nodes hacia AWS APIs, ECR, STS, DNS, Internet y servicios internos"
     from_port   = 0
@@ -137,7 +145,7 @@ resource "aws_security_group" "elasticache_sg" {
     security_groups = [aws_security_group.eks_nodes_sg.id]
   }
 
-   ingress {
+  ingress {
     description = "Permite acceso Redis desde la VPC"
     from_port   = 6379
     to_port     = 6379
