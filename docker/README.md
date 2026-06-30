@@ -146,10 +146,78 @@ En Mac con Apple Silicon pueden aparecer warnings similares a:
 The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64/v8)
 ```
 
-Para construir imágenes compatibles con los nodos EKS `t3.medium`, ejecutar:
+Para construir imágenes compatibles con los nodos EKS `t3.medium`, se debe utilizar una VM Docker con arquitectura `x86_64` o un builder multi-arquitectura.
+
+En Mac con Apple Silicon y Colima, el camino más simple para este proyecto es levantar Colima emulando `x86_64`:
 
 ```bash
-DOCKER_DEFAULT_PLATFORM=linux/amd64 ./docker/build-and-push.sh
+colima stop
+colima delete
+colima start --arch x86_64 --cpu 4 --memory 8 --disk 60
+```
+
+Validar que Docker esté corriendo como `x86_64`:
+
+```bash
+docker info | grep -i architecture
+```
+
+El resultado esperado es:
+
+```text
+Architecture: x86_64
+```
+
+Luego ejecutar el build normalmente, sin forzar `DOCKER_DEFAULT_PLATFORM`:
+
+```bash
+./docker/build-and-push.sh
+```
+
+#### Fix de Colima x86_64 en Apple Silicon
+
+Si al iniciar Colima con `--arch x86_64` aparece el error:
+
+```text
+qemu is required to emulate x86_64: qemu-img not found
+```
+
+instalar QEMU:
+
+```bash
+brew install qemu
+```
+
+Si luego aparece un error similar a:
+
+```text
+guest agent binary could not be found for Linux-x86_64
+Hint: try installing `lima-additional-guestagents` package
+```
+
+instalar los guest agents adicionales de Lima:
+
+```bash
+brew install lima-additional-guestagents
+```
+
+Después limpiar el intento fallido y volver a iniciar Colima:
+
+```bash
+colima delete
+colima start --arch x86_64 --cpu 4 --memory 8 --disk 60
+```
+
+Finalmente validar la arquitectura:
+
+```bash
+docker info | grep -i architecture
+```
+
+Si devuelve `Architecture: x86_64`, ya se puede ejecutar:
+
+```bash
+./docker/build-and-push.sh
 ```
 
 ### Falla en recommendationservice
