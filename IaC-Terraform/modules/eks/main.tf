@@ -29,31 +29,6 @@ resource "aws_eks_cluster" "eks_cluster" {
   }
 }
 
-resource "aws_launch_template" "eks_nodes_launch_template" {
-  name_prefix = "${var.cluster_name}-nodes-"
-
-  key_name = var.key_name
-  vpc_security_group_ids = [
-    var.eks_nodes_security_group_id,
-    var.eks_cluster_security_group_id
-  ]
-
-  tag_specifications {
-    resource_type = "instance"
-
-    tags = {
-      Name = "${var.cluster_name}-node"
-    }
-  }
-
-  tags = {
-    Name = "${var.cluster_name}-nodes-lt"
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
 
 resource "aws_eks_node_group" "eks_node_group" {
   cluster_name    = aws_eks_cluster.eks_cluster.name
@@ -74,11 +49,6 @@ resource "aws_eks_node_group" "eks_node_group" {
     max_unavailable = 1
   }
 
-  launch_template {
-    id      = aws_launch_template.eks_nodes_launch_template.id
-    version = aws_launch_template.eks_nodes_launch_template.latest_version
-  }
-
   tags = {
     Name = "${var.cluster_name}-node-group"
 
@@ -87,8 +57,7 @@ resource "aws_eks_node_group" "eks_node_group" {
   }
 
   depends_on = [
-    aws_eks_cluster.eks_cluster,
-    aws_launch_template.eks_nodes_launch_template
+    aws_eks_cluster.eks_cluster
   ]
 }
 
