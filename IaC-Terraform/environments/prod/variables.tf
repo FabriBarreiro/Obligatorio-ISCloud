@@ -109,3 +109,13 @@ variable "eks_public_access_cidrs" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
+
+variable "bastion_iam_instance_profile" {
+
+  description = "Nombre del IAM Instance Profile asociado al bastion."
+
+  type = string
+
+  default = "LabInstanceProfile"
+
+}

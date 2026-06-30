@@ -91,6 +91,7 @@ module "ec2" {
   instance_type             = var.bastion_instance_type
   key_name                  = var.key_name
   root_volume_size          = var.bastion_root_volume_size
+  iam_instance_profile      = var.bastion_iam_instance_profile
 
   depends_on = [
     module.route_tables
