@@ -32,8 +32,11 @@ resource "aws_eks_cluster" "eks_cluster" {
 resource "aws_launch_template" "eks_nodes_launch_template" {
   name_prefix = "${var.cluster_name}-nodes-"
 
-  key_name               = var.key_name
-  vpc_security_group_ids = [var.eks_nodes_security_group_id]
+  key_name = var.key_name
+  vpc_security_group_ids = [
+    var.eks_nodes_security_group_id,
+    var.eks_cluster_security_group_id
+  ]
 
   tag_specifications {
     resource_type = "instance"
@@ -73,7 +76,7 @@ resource "aws_eks_node_group" "eks_node_group" {
 
   launch_template {
     id      = aws_launch_template.eks_nodes_launch_template.id
-    version = "$Latest"
+    version = aws_launch_template.eks_nodes_launch_template.latest_version
   }
 
   tags = {
@@ -84,7 +87,8 @@ resource "aws_eks_node_group" "eks_node_group" {
   }
 
   depends_on = [
-    aws_eks_cluster.eks_cluster
+    aws_eks_cluster.eks_cluster,
+    aws_launch_template.eks_nodes_launch_template
   ]
 }
 
