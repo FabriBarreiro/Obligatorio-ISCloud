@@ -60,6 +60,11 @@ output "bastion_private_ip" {
   value       = module.ec2.bastion_private_ip
 }
 
+output "bastion_instance_id" {
+  description = "ID de la instancia EC2 Bastion Host."
+  value       = module.ec2.bastion_instance_id
+}
+
 output "ecr_repository_name" {
   description = "Nombre del repositorio ECR creado."
   value       = module.ecr.repository_names
