@@ -9,6 +9,7 @@ resource "aws_instance" "bastion" {
   key_name                    = var.key_name
   vpc_security_group_ids      = [var.bastion_security_group_id]
   associate_public_ip_address = true
+  iam_instance_profile        = var.iam_instance_profile
 
   user_data = <<-EOF
     #!/bin/bash

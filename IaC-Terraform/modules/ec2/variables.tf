@@ -35,3 +35,13 @@ variable "root_volume_size" {
   type        = number
   default     = 20
 }
+
+variable "iam_instance_profile" {
+
+  description = "Nombre del IAM Instance Profile asociado a la instancia bastion."
+
+  type = string
+
+  default = "LabInstanceProfile"
+
+}
