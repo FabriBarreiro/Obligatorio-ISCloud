@@ -54,26 +54,10 @@ resource "aws_security_group" "eks_cluster_sg" {
   }
 
   egress {
-    description = "Permite salida HTTPS hacia servicios de AWS e Internet mediante NAT Gateway"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    description = "Permite consultas DNS por UDP"
-    from_port   = 53
-    to_port     = 53
-    protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    description = "Permite consultas DNS por TCP"
-    from_port   = 53
-    to_port     = 53
-    protocol    = "tcp"
+    description = "Permite salida desde el control plane de EKS hacia los worker nodes y servicios requeridos"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -128,26 +112,10 @@ resource "aws_security_group" "eks_nodes_sg" {
   }
 
   egress {
-    description = "Permite salida HTTPS hacia servicios de AWS e Internet mediante NAT Gateway"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    description = "Permite consultas DNS por UDP"
-    from_port   = 53
-    to_port     = 53
-    protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    description = "Permite consultas DNS por TCP"
-    from_port   = 53
-    to_port     = 53
-    protocol    = "tcp"
+    description = "Permite salida desde los worker nodes hacia AWS APIs, ECR, STS, DNS, Internet y servicios internos"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
