@@ -70,6 +70,11 @@ variable "kubernetes_version" {
   default     = "1.34"
 }
 
+variable "eks_role_arn" {
+  description = "ARN del rol IAM utilizado por el cluster EKS y los worker nodes."
+  type        = string
+}
+
 variable "node_instance_types" {
   description = "Tipos de instancia EC2 utilizados por los worker nodes de EKS."
   type        = list(string)
