@@ -1,23 +1,26 @@
-
-
-output "redis_cluster_id" {
-  description = "ID del cluster Redis de ElastiCache."
-  value       = aws_elasticache_cluster.redis.id
+output "redis_replication_group_id" {
+  description = "ID del replication group Redis de ElastiCache."
+  value       = aws_elasticache_replication_group.redis.id
 }
 
-output "redis_endpoint" {
-  description = "Endpoint DNS del cluster Redis de ElastiCache."
-  value       = aws_elasticache_cluster.redis.cache_nodes[0].address
+output "redis_primary_endpoint" {
+  description = "Endpoint primario DNS del replication group Redis de ElastiCache."
+  value       = aws_elasticache_replication_group.redis.primary_endpoint_address
+}
+
+output "redis_reader_endpoint" {
+  description = "Endpoint de lectura DNS del replication group Redis de ElastiCache."
+  value       = aws_elasticache_replication_group.redis.reader_endpoint_address
 }
 
 output "redis_port" {
-  description = "Puerto TCP del cluster Redis de ElastiCache."
-  value       = aws_elasticache_cluster.redis.port
+  description = "Puerto TCP del replication group Redis de ElastiCache."
+  value       = aws_elasticache_replication_group.redis.port
 }
 
 output "redis_connection_string" {
-  description = "Cadena de conexion host:puerto para Redis."
-  value       = "${aws_elasticache_cluster.redis.cache_nodes[0].address}:${aws_elasticache_cluster.redis.port}"
+  description = "Cadena de conexion host:puerto hacia el endpoint primario de Redis."
+  value       = "${aws_elasticache_replication_group.redis.primary_endpoint_address}:${aws_elasticache_replication_group.redis.port}"
 }
 
 output "redis_subnet_group_name" {

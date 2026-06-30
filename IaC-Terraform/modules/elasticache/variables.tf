@@ -38,8 +38,20 @@ variable "port" {
   default     = 6379
 }
 
-variable "num_cache_nodes" {
-  description = "Cantidad de nodos del cluster Redis."
+variable "num_cache_clusters" {
+  description = "Cantidad de nodos del replication group Redis. Para alta disponibilidad se utilizan 2 nodos: un primario y una replica."
   type        = number
-  default     = 1
+  default     = 2
+}
+
+variable "automatic_failover_enabled" {
+  description = "Habilita failover automatico entre el nodo primario y la replica de Redis."
+  type        = bool
+  default     = true
+}
+
+variable "multi_az_enabled" {
+  description = "Habilita despliegue Multi-AZ para mejorar la disponibilidad del servicio Redis."
+  type        = bool
+  default     = true
 }
