@@ -94,3 +94,13 @@ output "ssh_bastion_command" {
   description = "Comando base para conectarse por SSH al Bastion Host."
   value       = "ssh -i /ruta/a/vockey.pem ec2-user@${module.ec2.bastion_public_ip}"
 }
+
+output "eks_oidc_provider_arn" {
+  description = "ARN del IAM OIDC Provider asociado al cluster EKS."
+  value       = module.eks.oidc_provider_arn
+}
+
+output "eks_oidc_provider_url" {
+  description = "URL del IAM OIDC Provider asociado al cluster EKS."
+  value       = module.eks.oidc_provider_url
+}
