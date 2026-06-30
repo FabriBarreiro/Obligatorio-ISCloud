@@ -74,7 +74,6 @@ variable "cluster_addons" {
   default = [
     "vpc-cni",
     "coredns",
-    "kube-proxy",
-    "aws-ebs-csi-driver"
+    "kube-proxy"
   ]
 }
