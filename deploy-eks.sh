@@ -61,8 +61,54 @@ echo "=== 4. Verificando nodos del clúster ==="
 kubectl get nodes
 
 echo
+echo "=== Metrics Server ==="
+
+if [ ! -d "k8s/metrics-server" ] || ! ls k8s/metrics-server/*.yaml >/dev/null 2>&1; then
+  echo "ERROR: No se encontraron manifiestos de Metrics Server en k8s/metrics-server/"
+  exit 1
+fi
+
+echo "Aplicando manifiestos..."
+kubectl apply -f k8s/metrics-server/
+
+echo "Esperando deployment..."
+kubectl rollout status deployment/metrics-server \
+  -n kube-system \
+  --timeout=180s
+
+echo "Validando Metrics API..."
+
+for i in {1..30}; do
+    if kubectl top nodes >/dev/null 2>&1; then
+        echo "OK: Metrics Server operativo."
+        break
+    fi
+
+    echo "Esperando Metrics API... ($i/30)"
+    sleep 5
+done
+
+if ! kubectl top nodes >/dev/null 2>&1; then
+    echo "ERROR: Metrics Server no quedó operativo."
+    exit 1
+fi
+
+echo
 echo "=== 5. Aplicando manifiestos en EKS ==="
 kubectl apply -f k8s/generated/
+
+echo
+echo "=== Aplicando HPA ==="
+
+if [ -d "k8s/hpa" ] && ls k8s/hpa/*.yaml >/dev/null 2>&1; then
+  kubectl apply -f k8s/hpa/
+else
+  echo "ERROR: No se encontraron manifiestos HPA en k8s/hpa/"
+  exit 1
+fi
+
+echo "Validando HPA..."
+kubectl get hpa
 
 echo
 echo "=== 6. Esperando deployments ==="
@@ -78,6 +124,15 @@ kubectl get pods
 echo
 echo "=== 8. Servicios ==="
 kubectl get svc
+
+echo
+echo "=== HPA ==="
+kubectl get hpa
+
+echo
+echo "=== Métricas ==="
+kubectl top nodes
+kubectl top pods
 
 echo
 echo "=== 9. URL pública del frontend ==="
