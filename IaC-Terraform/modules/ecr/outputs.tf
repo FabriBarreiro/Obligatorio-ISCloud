@@ -1,8 +1,12 @@
 
 
-output "repository_name" {
-  description = "Nombre del repositorio ECR creado."
-  value       = aws_ecr_repository.app_repository.name
+output "repository_names" {
+  description = "Repositorios creados"
+
+  value = {
+    for repo in aws_ecr_repository.repositories :
+    repo.name => repo.repository_url
+  }
 }
 
 output "repository_url" {

@@ -9,3 +9,8 @@ variable "environment" {
   description = "Ambiente donde se despliega la infraestructura."
   type        = string
 }
+
+variable "repositories" {
+  description = "Lista de repositorios ECR a crear."
+  type        = list(string)
+}

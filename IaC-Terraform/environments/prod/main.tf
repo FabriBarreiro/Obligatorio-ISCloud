@@ -65,6 +65,20 @@ module "ecr" {
 
   project_name = var.project_name
   environment  = var.environment
+
+  repositories = [
+    "frontend",
+    "cartservice",
+    "checkoutservice",
+    "currencyservice",
+    "paymentservice",
+    "productcatalogservice",
+    "recommendationservice",
+    "shippingservice",
+    "emailservice",
+    "adservice",
+    "loadgenerator"
+  ]
 }
 
 module "ec2" {
