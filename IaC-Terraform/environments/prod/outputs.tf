@@ -62,12 +62,12 @@ output "bastion_private_ip" {
 
 output "ecr_repository_name" {
   description = "Nombre del repositorio ECR creado."
-  value       = module.ecr.repository_name
+  value       = module.ecr.repository_names
 }
 
 output "ecr_repository_url" {
   description = "URL del repositorio ECR creado."
-  value       = module.ecr.repository_url
+  value       = module.ecr.repository_urls
 }
 
 output "eks_cluster_name" {
