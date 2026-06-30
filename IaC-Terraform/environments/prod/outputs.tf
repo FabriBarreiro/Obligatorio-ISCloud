@@ -90,6 +90,31 @@ output "eks_cluster_addons" {
   value       = module.eks.cluster_addons
 }
 
+output "redis_cluster_id" {
+  description = "ID del cluster Redis de ElastiCache."
+  value       = module.elasticache.redis_cluster_id
+}
+
+output "redis_endpoint" {
+  description = "Endpoint DNS del cluster Redis de ElastiCache."
+  value       = module.elasticache.redis_endpoint
+}
+
+output "redis_port" {
+  description = "Puerto TCP del cluster Redis de ElastiCache."
+  value       = module.elasticache.redis_port
+}
+
+output "redis_connection_string" {
+  description = "Cadena de conexion host:puerto para Redis."
+  value       = module.elasticache.redis_connection_string
+}
+
+output "redis_subnet_group_name" {
+  description = "Nombre del subnet group utilizado por ElastiCache Redis."
+  value       = module.elasticache.redis_subnet_group_name
+}
+
 output "ssh_bastion_command" {
   description = "Comando base para conectarse por SSH al Bastion Host."
   value       = "ssh -i /ruta/a/vockey.pem ec2-user@${module.ec2.bastion_public_ip}"

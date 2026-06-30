@@ -105,3 +105,17 @@ module "eks" {
     module.ec2
   ]
 }
+
+module "elasticache" {
+  source = "../../modules/elasticache"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  subnet_ids        = module.subnets.data_subnet_ids
+  security_group_id = module.security_groups.elasticache_security_group_id
+
+  depends_on = [
+    module.route_tables,
+    module.security_groups
+  ]
+}
