@@ -156,6 +156,24 @@ resource "aws_security_group" "eks_nodes_sg" {
   }
 }
 
+resource "aws_security_group" "elasticache_sg" {
+  name        = "${var.project_name}-${var.environment}-elasticache-sg"
+  description = "Security Group para ElastiCache Redis"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    description     = "Permite acceso Redis desde los worker nodes de EKS"
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [aws_security_group.eks_nodes_sg.id]
+  }
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-elasticache-sg"
+  }
+}
+
 resource "aws_security_group_rule" "eks_nodes_to_cluster_https" {
   description              = "Permite comunicacion HTTPS desde los worker nodes hacia el endpoint privado de EKS"
   type                     = "ingress"

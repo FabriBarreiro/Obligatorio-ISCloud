@@ -12,3 +12,8 @@ output "eks_nodes_security_group_id" {
   description = "ID del Security Group de los worker nodes de EKS."
   value       = aws_security_group.eks_nodes_sg.id
 }
+
+output "elasticache_security_group_id" {
+  description = "ID del Security Group utilizado por ElastiCache Redis."
+  value       = aws_security_group.elasticache_sg.id
+}
