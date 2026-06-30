@@ -34,3 +34,13 @@ output "cluster_addons" {
   description = "Add-ons administrados instalados en el cluster EKS."
   value       = keys(aws_eks_addon.eks_addons)
 }
+
+output "oidc_provider_arn" {
+  description = "ARN del IAM OIDC Provider asociado al cluster EKS."
+  value       = aws_iam_openid_connect_provider.eks_oidc.arn
+}
+
+output "oidc_provider_url" {
+  description = "URL del IAM OIDC Provider asociado al cluster EKS."
+  value       = aws_iam_openid_connect_provider.eks_oidc.url
+}
