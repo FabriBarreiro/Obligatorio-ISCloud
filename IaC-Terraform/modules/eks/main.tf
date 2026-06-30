@@ -1,11 +1,6 @@
-
-locals {
-  lab_role_arn = "arn:aws:iam::466395927784:role/LabRole"
-}
-
 resource "aws_eks_cluster" "eks_cluster" {
   name     = var.cluster_name
-  role_arn = local.lab_role_arn
+  role_arn = var.eks_role_arn
   version  = var.kubernetes_version
 
   access_config {
@@ -56,7 +51,7 @@ resource "aws_launch_template" "eks_nodes_launch_template" {
 resource "aws_eks_node_group" "eks_node_group" {
   cluster_name    = aws_eks_cluster.eks_cluster.name
   node_group_name = "${var.cluster_name}-node-group"
-  node_role_arn   = local.lab_role_arn
+  node_role_arn   = var.eks_role_arn
   subnet_ids      = var.private_subnet_ids
 
   instance_types = var.node_instance_types
