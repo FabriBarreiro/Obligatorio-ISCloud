@@ -197,3 +197,6 @@ temp/
 !**/terraform.tfvars.example
 !*.sample
 !*.sample.*
+
+# Manifiestos generados automáticamente
+k8s/generated/
