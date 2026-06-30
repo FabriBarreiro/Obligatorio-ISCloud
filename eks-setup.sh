@@ -6,9 +6,10 @@ set -euo pipefail
 # El bastion debe tener asociado el Instance Profile del LabRole para poder ejecutar los pasos IAM/EKS.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+REPO_ROOT="${REPO_ROOT:-${SCRIPT_DIR}}"
 TF_DIR="${TF_DIR:-${REPO_ROOT}/IaC-Terraform/environments/prod}"
-MONITORING_VALUES_FILE="${MONITORING_VALUES_FILE:-${SCRIPT_DIR}/monitoring/kube-prometheus-stack-values.yaml}"
+MONITORING_VALUES_FILE="${MONITORING_VALUES_FILE:-${REPO_ROOT}/k8s/monitoring/kube-prometheus-stack-values.yaml}"
+METRICS_SERVER_DIR="${METRICS_SERVER_DIR:-${REPO_ROOT}/k8s/metrics-server}"
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
 export AWS_PAGER=""
 export AWS_CLI_AUTO_PROMPT=off
@@ -51,6 +52,11 @@ fi
 
 if [[ ! -f "${MONITORING_VALUES_FILE}" ]]; then
   echo "ERROR: no existe el archivo de values de monitoreo: ${MONITORING_VALUES_FILE}"
+  exit 1
+fi
+
+if [[ ! -f "${METRICS_SERVER_DIR}/components.yaml" ]]; then
+  echo "ERROR: No existe ${METRICS_SERVER_DIR}/components.yaml"
   exit 1
 fi
 
@@ -498,8 +504,24 @@ YAML
 echo "======================================"
 echo "Instalando Metrics Server para HPA"
 echo "======================================"
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl apply -f "${METRICS_SERVER_DIR}/"
 wait_for_deployment_local "kube-system" "metrics-server" "300s"
+
+echo "Validando Metrics API..."
+for i in {1..30}; do
+  if kubectl top nodes >/dev/null 2>&1; then
+    echo "Metrics Server operativo."
+    break
+  fi
+
+  echo "Esperando Metrics API... intento ${i}/30"
+  sleep 5
+done
+
+if ! kubectl top nodes >/dev/null 2>&1; then
+  echo "ERROR: Metrics Server no quedó operativo."
+  exit 1
+fi
 
 echo "======================================"
 echo "Instalando AWS Load Balancer Controller"
