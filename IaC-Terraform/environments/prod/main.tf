@@ -116,6 +116,7 @@ module "eks" {
 
   depends_on = [
     module.route_tables,
+    module.security_groups,
     module.ec2
   ]
 }
