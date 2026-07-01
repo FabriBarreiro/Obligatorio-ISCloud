@@ -25,6 +25,10 @@ resource "aws_elasticache_replication_group" "redis" {
   automatic_failover_enabled = var.automatic_failover_enabled
   multi_az_enabled           = var.multi_az_enabled
 
+  snapshot_retention_limit = var.snapshot_retention_limit
+  snapshot_window          = var.snapshot_window
+  maintenance_window       = var.maintenance_window
+
   tags = {
     Name      = "${var.project_name}-${var.environment}-redis"
     Component = "elasticache"

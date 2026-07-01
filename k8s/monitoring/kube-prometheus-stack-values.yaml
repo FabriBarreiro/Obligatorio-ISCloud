@@ -1,0 +1,49 @@
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ebs-gp3
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 10Gi
+
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+
+prometheusOperator:
+  replicas: 1
+  admissionWebhooks:
+    enabled: false
+
+kube-state-metrics:
+  replicas: 1
+
+grafana:
+  replicas: 1
+
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: ebs-gp3
+    accessModes:
+      - ReadWriteOnce
+    size: 2Gi
+
+  service:
+    type: ClusterIP
+
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      alb.ingress.kubernetes.io/healthcheck-path: /api/health
+      alb.ingress.kubernetes.io/success-codes: "200"
+      alb.ingress.kubernetes.io/inbound-cidrs: 0.0.0.0/0

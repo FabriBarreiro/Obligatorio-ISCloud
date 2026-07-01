@@ -1,0 +1,10 @@
+# Bash scripts siempre con LF para compatibilidad Linux/macOS/WSL
+*.sh text eol=lf
+
+# YAML y Dockerfiles también con LF
+*.yml text eol=lf
+*.yaml text eol=lf
+Dockerfile text eol=lf
+
+# PowerShell con CRLF
+*.ps1 text eol=crlf

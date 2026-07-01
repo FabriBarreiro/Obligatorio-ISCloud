@@ -55,3 +55,21 @@ variable "multi_az_enabled" {
   type        = bool
   default     = true
 }
+
+variable "snapshot_retention_limit" {
+  description = "Cantidad de snapshots automáticos de Redis a conservar."
+  type        = number
+  default     = 7
+}
+
+variable "snapshot_window" {
+  description = "Ventana diaria UTC para la creación de snapshots automáticos de Redis."
+  type        = string
+  default     = "03:00-04:00"
+}
+
+variable "maintenance_window" {
+  description = "Ventana semanal UTC de mantenimiento para ElastiCache Redis."
+  type        = string
+  default     = "sun:04:00-sun:05:00"
+}

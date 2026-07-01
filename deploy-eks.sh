@@ -61,8 +61,32 @@ echo "=== 4. Verificando nodos del clúster ==="
 kubectl get nodes
 
 echo
+echo "=== Validando Metrics Server ==="
+
+if ! kubectl top nodes >/dev/null 2>&1; then
+  echo "ERROR: Metrics Server no está operativo."
+  echo "Ejecutá primero: ./eks-setup.sh"
+  exit 1
+fi
+
+echo "OK: Metrics Server operativo."
+
+echo
 echo "=== 5. Aplicando manifiestos en EKS ==="
 kubectl apply -f k8s/generated/
+
+echo
+echo "=== Aplicando HPA ==="
+
+if [ -d "k8s/hpa" ] && ls k8s/hpa/*.yaml >/dev/null 2>&1; then
+  kubectl apply -f k8s/hpa/
+else
+  echo "ERROR: No se encontraron manifiestos HPA en k8s/hpa/"
+  exit 1
+fi
+
+echo "Validando HPA..."
+kubectl get hpa
 
 echo
 echo "=== 6. Esperando deployments ==="
@@ -80,12 +104,34 @@ echo "=== 8. Servicios ==="
 kubectl get svc
 
 echo
-echo "=== 9. URL pública del frontend ==="
-FRONTEND_URL=$(kubectl get svc frontend-external -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+echo "=== HPA ==="
+kubectl get hpa
 
-if [ -n "$FRONTEND_URL" ]; then
-  echo "http://$FRONTEND_URL"
-else
-  echo "El LoadBalancer todavía no tiene DNS asignado."
-  echo "Ejecutá: kubectl get svc frontend-external"
-fi
+echo
+echo "=== Métricas ==="
+kubectl top nodes
+kubectl top pods
+
+echo
+echo "=== 9. URL pública del frontend ==="
+
+FRONTEND_URL=""
+
+for i in {1..30}; do
+  FRONTEND_URL=$(kubectl get ingress frontend-alb -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+
+  if [ -n "$FRONTEND_URL" ]; then
+    echo "URL pública del frontend:"
+    echo "http://$FRONTEND_URL"
+    exit 0
+  fi
+
+  echo "Esperando DNS del ALB... intento $i/30"
+  sleep 20
+done
+
+echo "El LoadBalancer todavía no tiene DNS asignado."
+echo "Verificá con:"
+echo "kubectl get ingress frontend-alb"
+echo "kubectl describe ingress frontend-alb"
+exit 1

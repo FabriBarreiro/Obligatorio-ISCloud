@@ -20,7 +20,10 @@ import time
 import traceback
 from concurrent import futures
 
-import googleclouddebugger
+try:
+    import googleclouddebugger
+except ImportError:
+    googleclouddebugger = None
 import googlecloudprofiler
 from google.auth.exceptions import DefaultCredentialsError
 import grpc
@@ -116,12 +119,14 @@ if __name__ == "__main__":
         logger.info("Tracing disabled.")
         tracer_interceptor = server_interceptor.OpenCensusServerInterceptor()
     except Exception as e:
-        logger.warn(f"Exception on Cloud Trace setup: {traceback.format_exc()}, tracing disabled.") 
+        logger.warn(f"Exception on Cloud Trace setup: {traceback.format_exc()}, tracing disabled.")
         tracer_interceptor = server_interceptor.OpenCensusServerInterceptor()
-   
+
     try:
       if "DISABLE_DEBUGGER" in os.environ:
         raise KeyError()
+      elif googleclouddebugger is None:
+        logger.info("Debugger disabled because googleclouddebugger is not installed.")
       else:
         logger.info("Debugger enabled.")
         try:
@@ -133,7 +138,7 @@ if __name__ == "__main__":
             logger.error("Could not enable debugger")
             logger.error(traceback.print_exc())
             pass
-    except (Exception, DefaultCredentialsError):
+    except (Exception, DefaultCredentialsError, KeyError):
         logger.info("Debugger disabled.")
 
     port = os.environ.get('PORT', "8080")

@@ -111,6 +111,14 @@ resource "aws_security_group" "eks_nodes_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "Permite trafico desde ALB hacia pods de grafana publicados por Ingress"
+    from_port   = 3000
+    to_port     = 3000
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
   egress {
     description = "Permite salida desde los worker nodes hacia AWS APIs, ECR, STS, DNS, Internet y servicios internos"
     from_port   = 0
@@ -120,7 +128,8 @@ resource "aws_security_group" "eks_nodes_sg" {
   }
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-eks-nodes-sg"
+    Name                                        = "${var.project_name}-${var.environment}-eks-nodes-sg"
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
   }
 }
 
@@ -135,6 +144,22 @@ resource "aws_security_group" "elasticache_sg" {
     to_port         = 6379
     protocol        = "tcp"
     security_groups = [aws_security_group.eks_nodes_sg.id]
+  }
+
+  ingress {
+    description = "Permite acceso Redis desde la VPC"
+    from_port   = 6379
+    to_port     = 6379
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  egress {
+    description = "Permite trafico saliente"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = {

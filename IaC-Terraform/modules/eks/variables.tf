@@ -5,6 +5,11 @@ variable "project_name" {
   type        = string
 }
 
+variable "eks_role_arn" {
+  description = "ARN del rol IAM utilizado por el cluster EKS y los worker nodes."
+  type        = string
+}
+
 variable "cluster_name" {
   description = "Nombre del cluster EKS."
   type        = string
