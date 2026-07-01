@@ -17,6 +17,8 @@ alertmanager:
 
 prometheusOperator:
   replicas: 1
+  tls:
+    enabled: false
   admissionWebhooks:
     enabled: false
 
