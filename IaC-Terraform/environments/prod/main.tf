@@ -138,3 +138,10 @@ module "elasticache" {
     module.security_groups
   ]
 }
+
+module "backup" {
+  source = "../../modules/backup"
+
+  project_name = var.project_name
+  environment  = var.environment
+}

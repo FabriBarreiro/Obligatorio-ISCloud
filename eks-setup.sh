@@ -9,8 +9,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-${SCRIPT_DIR}}"
 TF_DIR="${TF_DIR:-${REPO_ROOT}/IaC-Terraform/environments/prod}"
 MONITORING_VALUES_FILE="${MONITORING_VALUES_FILE:-${REPO_ROOT}/k8s/monitoring/kube-prometheus-stack-values.yaml}"
+LOKI_VALUES_FILE="${LOKI_VALUES_FILE:-${REPO_ROOT}/k8s/monitoring/loki-values.yaml}"
 METRICS_SERVER_DIR="${METRICS_SERVER_DIR:-${REPO_ROOT}/k8s/metrics-server}"
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
+RECYCLE_NODEGROUPS_FOR_PREFIX_DELEGATION="${RECYCLE_NODEGROUPS_FOR_PREFIX_DELEGATION:-false}"
 export AWS_PAGER=""
 export AWS_CLI_AUTO_PROMPT=off
 
@@ -55,6 +57,12 @@ if [[ ! -f "${MONITORING_VALUES_FILE}" ]]; then
   exit 1
 fi
 
+if [[ ! -f "${LOKI_VALUES_FILE}" ]]; then
+  echo "ERROR: no existe el archivo de values de Loki: ${LOKI_VALUES_FILE}"
+  echo "Crear el archivo k8s/monitoring/loki-values.yaml antes de ejecutar este script."
+  exit 1
+fi
+
 if [[ ! -f "${METRICS_SERVER_DIR}/components.yaml" ]]; then
   echo "ERROR: No existe ${METRICS_SERVER_DIR}/components.yaml"
   exit 1
@@ -83,6 +91,8 @@ echo "Setup EKS por SSM desde Bastion"
 echo "======================================"
 echo "Terraform dir: ${TF_DIR}"
 echo "Monitoring values: ${MONITORING_VALUES_FILE}"
+echo "Loki values: ${LOKI_VALUES_FILE}"
+echo "Recycle nodegroups for Prefix Delegation: ${RECYCLE_NODEGROUPS_FOR_PREFIX_DELEGATION}"
 echo "Cluster EKS: ${CLUSTER_NAME}"
 echo "Region: ${REGION}"
 echo "Account ID local: ${AWS_ACCOUNT_ID}"
@@ -432,9 +442,31 @@ wait_for_deployment_local() {
   kubectl rollout status deployment "${deployment}" -n "${namespace}" --timeout="${timeout}"
 }
 
-echo "======================================"
-echo "Ejecutando setup Kubernetes/Helm local"
-echo "======================================"
+# Debug function for deployment in a namespace
+debug_deployment_local() {
+  local namespace="$1"
+  local deployment="$2"
+  local selector=""
+
+  echo "======================================"
+  echo "Debug deployment ${namespace}/${deployment}"
+  echo "======================================"
+  kubectl get deployment -n "${namespace}" "${deployment}" -o wide || true
+  kubectl describe deployment -n "${namespace}" "${deployment}" || true
+
+  selector="$(kubectl get deployment -n "${namespace}" "${deployment}" -o jsonpath='{.spec.selector.matchLabels}' 2>/dev/null || true)"
+  echo "Selector deployment: ${selector}"
+
+  echo "Pods del namespace ${namespace}:"
+  kubectl get pods -n "${namespace}" -o wide || true
+
+  echo "Eventos recientes en ${namespace}:"
+  kubectl get events -n "${namespace}" --sort-by=.lastTimestamp | tail -80 || true
+
+  echo "Logs recientes del deployment ${deployment}:"
+  kubectl logs -n "${namespace}" deployment/"${deployment}" --all-containers=true --tail=120 || true
+}
+
 
 aws eks update-kubeconfig \
   --no-cli-pager \
@@ -443,6 +475,54 @@ aws eks update-kubeconfig \
 
 echo "Validando acceso local al cluster..."
 kubectl get nodes
+
+# ==========================================================
+# AWS VPC CNI - Prefix Delegation
+# ==========================================================
+echo "======================================"
+echo "Configurando AWS VPC CNI Prefix Delegation"
+echo "======================================"
+
+if kubectl get daemonset aws-node -n kube-system >/dev/null 2>&1; then
+  echo "DaemonSet aws-node encontrado. Habilitando Prefix Delegation para aumentar densidad de pods por nodo..."
+
+  echo "Intentando persistir Prefix Delegation en el add-on administrado vpc-cni si existe..."
+  if aws eks describe-addon --no-cli-pager --cluster-name "${CLUSTER_NAME}" --addon-name vpc-cni --region "${REGION}" >/dev/null 2>&1; then
+    aws eks update-addon \
+      --no-cli-pager \
+      --cluster-name "${CLUSTER_NAME}" \
+      --addon-name vpc-cni \
+      --region "${REGION}" \
+      --configuration-values '{"env":{"ENABLE_PREFIX_DELEGATION":"true","WARM_PREFIX_TARGET":"1"}}' \
+      --resolve-conflicts OVERWRITE >/dev/null || true
+  else
+    echo "WARN: el add-on vpc-cni no aparece como EKS add-on administrado. Se configurara directamente el DaemonSet aws-node."
+  fi
+
+  kubectl set env daemonset aws-node -n kube-system ENABLE_PREFIX_DELEGATION=true
+  kubectl set env daemonset aws-node -n kube-system WARM_PREFIX_TARGET=1
+  kubectl set env daemonset aws-node -n kube-system WARM_IP_TARGET- || true
+  kubectl set env daemonset aws-node -n kube-system MINIMUM_IP_TARGET- || true
+
+  echo "Reiniciando aws-node para aplicar Prefix Delegation..."
+  kubectl rollout restart daemonset aws-node -n kube-system
+  kubectl rollout status daemonset aws-node -n kube-system --timeout=300s
+
+  echo "Variables actuales de aws-node relacionadas a Prefix Delegation:"
+  kubectl describe daemonset aws-node -n kube-system | grep -E "ENABLE_PREFIX_DELEGATION|WARM_PREFIX_TARGET" || true
+
+  echo "Capacidad actual de pods por nodo:"
+  kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" maxPods="}{.status.capacity.pods}{" allocatable="}{.status.allocatable.pods}{"\n"}{end}'
+
+  if kubectl get nodes -o jsonpath='{range .items[*]}{.status.capacity.pods}{"\n"}{end}' | grep -q '^17$'; then
+    echo "WARN: uno o mas nodos siguen anunciando maxPods=17."
+    echo "Prefix Delegation quedo habilitado en el AWS VPC CNI, pero los nodos existentes pueden conservar el limite anterior hasta ser recreados."
+    echo "Para evitar demoras durante el setup, este script no recicla nodos automaticamente."
+    echo "Si se requiere aumentar maxPods efectivamente, recrear el Managed Node Group desde Terraform o reciclar los nodos fuera de este script."
+  fi
+else
+  echo "WARN: no se encontro daemonset aws-node en kube-system. Se omite configuracion de Prefix Delegation."
+fi
 
 echo "======================================"
 echo "Validando EBS CSI Driver para persistencia"
@@ -497,6 +577,10 @@ provisioner: ebs.csi.aws.com
 parameters:
   type: gp3
   fsType: ext4
+  tagSpecification_1: "Backup=true"
+  tagSpecification_2: "Project=obligatorio-iscloud"
+  tagSpecification_3: "Environment=prod"
+  tagSpecification_4: "Component=monitoring"
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
 YAML
@@ -560,10 +644,6 @@ wait_for_deployment_local "kube-system" "aws-load-balancer-controller" "300s"
 # Se eliminan los webhooks de admision para evitar timeouts al crear Services/Ingress.
 kubectl delete mutatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found=true
 kubectl delete validatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found=true
-kubectl delete job -n monitoring monitoring-kube-prometheus-admission-create --ignore-not-found=true
-kubectl delete job -n monitoring monitoring-kube-prometheus-admission-patch --ignore-not-found=true
-kubectl delete validatingwebhookconfiguration monitoring-kube-prometheus-admission --ignore-not-found=true
-kubectl delete mutatingwebhookconfiguration monitoring-kube-prometheus-admission --ignore-not-found=true
 
 echo "======================================"
 echo "Instalando Cluster Autoscaler"
@@ -586,6 +666,58 @@ wait_for_deployment_local "kube-system" "cluster-autoscaler-aws-cluster-autoscal
 wait_for_deployment_local "kube-system" "cluster-autoscaler" "300s"
 
 echo "======================================"
+echo "Instalando Loki para logs centralizados"
+echo "======================================"
+helm repo add grafana https://grafana.github.io/helm-charts || true
+helm repo update
+
+helm upgrade --install loki grafana/loki \
+  --namespace monitoring \
+  --create-namespace \
+  --timeout 15m \
+  -f "${LOKI_VALUES_FILE}"
+
+echo "Esperando Loki..."
+if kubectl get statefulset -n monitoring loki >/dev/null 2>&1; then
+  kubectl rollout status statefulset/loki -n monitoring --timeout=600s
+elif kubectl get statefulset -n monitoring loki-single-binary >/dev/null 2>&1; then
+  kubectl rollout status statefulset/loki-single-binary -n monitoring --timeout=600s
+elif kubectl get deployment -n monitoring loki >/dev/null 2>&1; then
+  kubectl rollout status deployment/loki -n monitoring --timeout=600s
+else
+  echo "ERROR: no se encontro workload de Loki para validar rollout."
+  kubectl get pods -n monitoring -o wide | grep -i loki || true
+  kubectl get statefulset -n monitoring || true
+  kubectl get deployment -n monitoring || true
+  exit 1
+fi
+
+if ! kubectl get svc -n monitoring loki-gateway >/dev/null 2>&1; then
+  echo "ERROR: no se encontro el Service loki-gateway requerido por Grafana y Promtail."
+  kubectl get svc -n monitoring | grep -i loki || true
+  exit 1
+fi
+
+echo "======================================"
+echo "Instalando Promtail para recolectar logs"
+echo "======================================"
+helm upgrade --install promtail grafana/promtail \
+  --namespace monitoring \
+  --timeout 10m \
+  --set 'config.clients[0].url=http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push'
+
+echo "Esperando Promtail..."
+if ! kubectl rollout status daemonset/promtail -n monitoring --timeout=300s; then
+  echo "WARN: Promtail no quedo Ready en todos los nodos dentro del timeout."
+  echo "Esto puede ocurrir si los nodos siguen teniendo bajo limite maximo de pods o aun no fueron reciclados luego de habilitar Prefix Delegation."
+  echo "Estado de Promtail:"
+  kubectl get pods -n monitoring -l app.kubernetes.io/name=promtail -o wide || true
+  kubectl describe daemonset -n monitoring promtail || true
+  kubectl get events -A --sort-by=.lastTimestamp | grep -i promtail | tail -40 || true
+  echo "Se continua porque Promtail puede recolectar logs desde los nodos donde quedo Ready."
+fi
+
+echo "======================================"
 echo "Instalando monitoreo: Prometheus + Grafana"
 echo "======================================"
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
@@ -600,8 +732,22 @@ helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
   --timeout 15m \
   -f "${MONITORING_VALUES_FILE}"
 
-wait_for_deployment_local "monitoring" "monitoring-grafana" "600s"
-wait_for_deployment_local "monitoring" "monitoring-kube-prometheus-operator" "600s"
+# Los values deshabilitan admissionWebhooks y TLS del Prometheus Operator.
+# Por lo tanto, no se crea manualmente monitoring-kube-prometheus-admission.
+# Se eliminan webhooks admission residuales de ejecuciones anteriores para evitar timeouts.
+kubectl delete validatingwebhookconfiguration monitoring-kube-prometheus-admission --ignore-not-found=true
+kubectl delete mutatingwebhookconfiguration monitoring-kube-prometheus-admission --ignore-not-found=true
+
+if ! wait_for_deployment_local "monitoring" "monitoring-grafana" "600s"; then
+  debug_deployment_local "monitoring" "monitoring-grafana"
+  exit 1
+fi
+
+if ! wait_for_deployment_local "monitoring" "monitoring-kube-prometheus-operator" "600s"; then
+  debug_deployment_local "monitoring" "monitoring-kube-prometheus-operator"
+  echo "ERROR: Prometheus Operator no quedo disponible. Revisar los eventos/logs anteriores."
+  exit 1
+fi
 
 EKS_NODE_SG_ID="$(aws eks describe-cluster \
   --no-cli-pager \
@@ -638,6 +784,13 @@ kubectl get pods -A
 kubectl get svc -A
 kubectl get storageclass
 kubectl get pvc -n monitoring
+
+echo "Validando Loki y Promtail..."
+kubectl get pods -n monitoring | grep -E "loki|promtail" || true
+kubectl get svc -n monitoring | grep loki || true
+kubectl get daemonset -n monitoring promtail || true
+kubectl get pvc -n monitoring | grep loki || true
+
 kubectl get svc -n monitoring monitoring-grafana
 kubectl get ingress -n monitoring
 GRAFANA_HOSTNAME=""
@@ -671,6 +824,8 @@ fi
 kubectl get deployment -n kube-system aws-load-balancer-controller
 kubectl get deployment -n monitoring monitoring-grafana
 kubectl get deployment -n monitoring monitoring-kube-prometheus-operator
+kubectl get daemonset -n monitoring promtail || true
+kubectl get svc -n monitoring loki-gateway || true
 
 echo "======================================"
 echo "Acceso a Grafana"

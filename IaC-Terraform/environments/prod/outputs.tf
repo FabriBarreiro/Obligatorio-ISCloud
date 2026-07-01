@@ -130,3 +130,14 @@ output "ssh_bastion_command" {
   value       = "ssh -i /ruta/a/vockey.pem ec2-user@${module.ec2.bastion_public_ip}"
 }
 
+output "backup_vault_name" {
+  value = module.backup.backup_vault_name
+}
+
+output "backup_plan_id" {
+  value = module.backup.backup_plan_id
+}
+
+output "backup_role_arn" {
+  value = module.backup.backup_role_arn
+}

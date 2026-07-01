@@ -17,6 +17,8 @@ alertmanager:
 
 prometheusOperator:
   replicas: 1
+  tls:
+    enabled: false
   admissionWebhooks:
     enabled: false
 
@@ -25,6 +27,13 @@ kube-state-metrics:
 
 grafana:
   replicas: 1
+
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki-gateway.monitoring.svc.cluster.local
+      isDefault: false
 
   persistence:
     enabled: true
