@@ -6,7 +6,6 @@ Este repositorio contiene el desarrollo del obligatorio de la materia **Implemen
 
 El proyecto consiste en la automatización del despliegue de una aplicación basada en **microservicios** sobre **Amazon Web Services (AWS)** utilizando **Terraform** como herramienta de Infraestructura como Código (IaC) y **Amazon Elastic Kubernetes Service (EKS)** como plataforma de orquestación de contenedores.
 
-
 Toda la infraestructura se encuentra completamente automatizada, permitiendo desplegar el ambiente desde cero mediante Terraform y posteriormente publicar la aplicación utilizando Docker, Amazon ECR y Kubernetes.
 
 El procedimiento completo de despliegue se encuentra documentado en [`docs/despliegue.md`](docs/despliegue.md), donde se detallan los pasos necesarios para aprovisionar la infraestructura, configurar el clúster EKS y desplegar la aplicación.
@@ -107,7 +106,7 @@ Obligatorio-ISCloud/
 │       ├── ec2/                        # Bastion Host
 │       ├── ecr/                        # Amazon ECR
 │       ├── eks/                        # Amazon EKS y Node Groups
-│       ├── elasticache/                # Amazon ElastiCache (Redis)
+│       ├── elasticache/                # Amazon ElastiCache Redis
 │       ├── igw/                        # Internet Gateway
 │       ├── natgw/                      # NAT Gateway
 │       ├── route-tables/               # Tablas de ruteo
@@ -115,25 +114,28 @@ Obligatorio-ISCloud/
 │       ├── subnets/                    # Subredes públicas y privadas
 │       └── vpc/                        # Virtual Private Cloud
 │
-├── docker/                             # Scripts para construir y publicar imágenes Docker
+├── docker/
+│   ├── README.md                       # Documentación del build/push de imágenes
+│   └── build-and-push.sh               # Construcción y publicación de imágenes Docker en ECR
 │
 ├── docs/
 │   ├── despliegue.md                   # Guía de despliegue
 │   └── DiagramaSC.drawio.png           # Diagrama de arquitectura
 │
 ├── k8s/
-│   ├── generated/                      # Manifiestos Kubernetes generados automáticamente
 │   ├── hpa/                            # Horizontal Pod Autoscaler
 │   ├── metrics-server/                 # Metrics Server
-│   ├── monitoring/                     # Prometheus, Grafana y Loki
+│   ├── monitoring/                     # Prometheus, Grafana, Loki y Promtail
 │   └── generate-manifests.sh           # Generación automática de manifiestos
 │
 ├── deploy-eks.sh                       # Despliegue de la aplicación en EKS
 ├── eks-setup.sh                        # Configuración inicial del clúster
+├── frontend-request-test.sh            # Script de prueba de requests contra el frontend
 │
 ├── LICENSE
 └── README.md
 ```
+
 # Observabilidad
 
 La solución incorpora una capa de observabilidad integrada al clúster EKS. Para métricas se utiliza `kube-prometheus-stack`, que incluye Prometheus, Grafana, Alertmanager, kube-state-metrics y node-exporter. Prometheus recolecta métricas mediante scraping de endpoints internos del clúster, incluyendo kube-state-metrics para el estado de objetos Kubernetes, node-exporter para métricas de nodos y kubelet/cAdvisor para métricas de pods y contenedores. Esto permite monitorear el estado del clúster, nodos, pods, deployments, consumo de CPU/memoria, reinicios, PVCs y otros recursos de Kubernetes.
@@ -175,7 +177,6 @@ Como posibles mejoras futuras de la solución se identifican los siguientes punt
 Durante el desarrollo de este proyecto se utilizaron herramientas de Inteligencia Artificial, principalmente ChatGPT y Codex, como apoyo para la revisión y mejora de fragmentos de código, infraestructura como código (IaC) y la redacción de la documentación técnica.
 
 Todas las soluciones implementadas fueron analizadas, adaptadas y validadas por los integrantes del equipo antes de su incorporación al proyecto, asegurando que cada decisión técnica fuera comprendida y cumpliera con los objetivos planteados.
-
 
 # Autores
 
