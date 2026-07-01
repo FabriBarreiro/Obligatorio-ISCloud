@@ -132,7 +132,9 @@ La solución incorpora una capa de observabilidad integrada al clúster EKS. Par
 
 Para logs se incorpora Grafana Loki como backend centralizado y Promtail como recolector. Promtail obtiene los logs de los pods desde los nodos del clúster y los envía a Loki. Grafana queda configurado con Loki como datasource, permitiendo consultar métricas y logs desde una misma interfaz.
 
-Las trazas distribuidas no forman parte del alcance de esta implementación, ya que requieren instrumentación adicional de la aplicación y componentes como OpenTelemetry, Tempo, Jaeger o AWS X-Ray.
+Por facilidad de acceso durante el desarrollo y la demostración del obligatorio, Grafana se publica mediante un Load Balancer. Esto permite acceder rápidamente a los dashboards desde Internet y validar el funcionamiento de la solución de observabilidad.
+
+En un entorno productivo real, Grafana no debería quedar expuesto públicamente. El acceso recomendado sería privado, por ejemplo mediante una VPN corporativa, un bastion host, una red interna conectada a AWS por Site-to-Site VPN o Direct Connect, o mediante un Load Balancer interno restringido a rangos privados. De esta forma, la consola de monitoreo solo estaría disponible para usuarios administradores dentro de la red autorizada, reduciendo la superficie de exposición pública.
 
 # Persistencia y backups
 
