@@ -110,6 +110,18 @@ variable "cluster_addons" {
   ]
 }
 
+variable "enable_vpc_cni_prefix_delegation" {
+  description = "Habilita prefix delegation en el add-on VPC CNI para aumentar la cantidad de IPs disponibles para pods por nodo."
+  type        = bool
+  default     = true
+}
+
+variable "vpc_cni_warm_prefix_target" {
+  description = "Cantidad de prefijos IPv4 /28 que el VPC CNI mantiene disponibles por nodo."
+  type        = number
+  default     = 1
+}
+
 variable "eks_public_access_cidrs" {
   description = "CIDRs permitidos para acceder al endpoint público del cluster EKS."
   type        = list(string)
@@ -117,11 +129,7 @@ variable "eks_public_access_cidrs" {
 }
 
 variable "bastion_iam_instance_profile" {
-
   description = "Nombre del IAM Instance Profile asociado al bastion."
-
-  type = string
-
-  default = "LabInstanceProfile"
-
+  type        = string
+  default     = "LabInstanceProfile"
 }

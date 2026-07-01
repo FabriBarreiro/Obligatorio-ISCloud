@@ -14,9 +14,11 @@ variable "vpc_id" {
 }
 
 variable "cluster_name" {
-
   description = "Nombre del cluster EKS utilizado para tags de Kubernetes."
+  type        = string
+}
 
-  type = string
-
+variable "vpc_cidr_block" {
+  description = "CIDR principal de la VPC utilizado para permitir trafico interno necesario entre ALB, nodos EKS y pods."
+  type        = string
 }

@@ -53,14 +53,6 @@ resource "aws_security_group" "eks_cluster_sg" {
     security_groups = [aws_security_group.bastion_sg.id]
   }
 
-  egress {
-    description = "Permite salida desde el control plane de EKS hacia los worker nodes y servicios requeridos"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   tags = {
     Name = "${var.project_name}-${var.environment}-eks-cluster-sg"
   }
@@ -108,7 +100,7 @@ resource "aws_security_group" "eks_nodes_sg" {
     from_port   = 30000
     to_port     = 32767
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr_block]
   }
 
   ingress {
@@ -116,7 +108,7 @@ resource "aws_security_group" "eks_nodes_sg" {
     from_port   = 3000
     to_port     = 3000
     protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]
+    cidr_blocks = [var.vpc_cidr_block]
   }
 
   egress {
@@ -146,14 +138,6 @@ resource "aws_security_group" "elasticache_sg" {
     security_groups = [aws_security_group.eks_nodes_sg.id]
   }
 
-  ingress {
-    description = "Permite acceso Redis desde la VPC"
-    from_port   = 6379
-    to_port     = 6379
-    protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]
-  }
-
   egress {
     description = "Permite trafico saliente"
     from_port   = 0
@@ -173,6 +157,46 @@ resource "aws_security_group_rule" "eks_nodes_to_cluster_https" {
   from_port                = 443
   to_port                  = 443
   protocol                 = "tcp"
+  security_group_id        = aws_security_group.eks_cluster_sg.id
+  source_security_group_id = aws_security_group.eks_nodes_sg.id
+}
+
+resource "aws_security_group_rule" "eks_cluster_to_nodes_https" {
+  description              = "Permite HTTPS desde el control plane hacia los worker nodes"
+  type                     = "egress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.eks_cluster_sg.id
+  source_security_group_id = aws_security_group.eks_nodes_sg.id
+}
+
+resource "aws_security_group_rule" "eks_cluster_to_nodes_kubelet" {
+  description              = "Permite comunicacion del control plane hacia kubelet en los worker nodes"
+  type                     = "egress"
+  from_port                = 10250
+  to_port                  = 10250
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.eks_cluster_sg.id
+  source_security_group_id = aws_security_group.eks_nodes_sg.id
+}
+
+resource "aws_security_group_rule" "eks_cluster_to_nodes_dns_tcp" {
+  description              = "Permite DNS TCP desde el control plane hacia los worker nodes"
+  type                     = "egress"
+  from_port                = 53
+  to_port                  = 53
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.eks_cluster_sg.id
+  source_security_group_id = aws_security_group.eks_nodes_sg.id
+}
+
+resource "aws_security_group_rule" "eks_cluster_to_nodes_dns_udp" {
+  description              = "Permite DNS UDP desde el control plane hacia los worker nodes"
+  type                     = "egress"
+  from_port                = 53
+  to_port                  = 53
+  protocol                 = "udp"
   security_group_id        = aws_security_group.eks_cluster_sg.id
   source_security_group_id = aws_security_group.eks_nodes_sg.id
 }

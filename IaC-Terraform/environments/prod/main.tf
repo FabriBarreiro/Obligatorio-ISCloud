@@ -57,10 +57,11 @@ module "route_tables" {
 module "security_groups" {
   source = "../../modules/security-groups"
 
-  project_name = var.project_name
-  environment  = var.environment
-  vpc_id       = module.vpc.vpc_id
-  cluster_name = var.cluster_name
+  project_name   = var.project_name
+  environment    = var.environment
+  vpc_id         = module.vpc.vpc_id
+  vpc_cidr_block = var.vpc_cidr_block
+  cluster_name   = var.cluster_name
 }
 
 module "ecr" {
@@ -104,20 +105,22 @@ module "ec2" {
 module "eks" {
   source = "../../modules/eks"
 
-  project_name                  = var.project_name
-  cluster_name                  = var.cluster_name
-  kubernetes_version            = var.kubernetes_version
-  eks_role_arn                  = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.eks_role_name}"
-  private_subnet_ids            = module.subnets.private_subnet_ids
-  eks_cluster_security_group_id = module.security_groups.eks_cluster_security_group_id
-  eks_public_access_cidrs       = var.eks_public_access_cidrs
-  eks_nodes_security_group_id   = module.security_groups.eks_nodes_security_group_id
-  key_name                      = var.key_name
-  node_instance_types           = var.node_instance_types
-  node_desired_size             = var.node_desired_size
-  node_min_size                 = var.node_min_size
-  node_max_size                 = var.node_max_size
-  cluster_addons                = var.cluster_addons
+  project_name                     = var.project_name
+  cluster_name                     = var.cluster_name
+  kubernetes_version               = var.kubernetes_version
+  eks_role_arn                     = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.eks_role_name}"
+  private_subnet_ids               = module.subnets.private_subnet_ids
+  eks_cluster_security_group_id    = module.security_groups.eks_cluster_security_group_id
+  eks_public_access_cidrs          = var.eks_public_access_cidrs
+  eks_nodes_security_group_id      = module.security_groups.eks_nodes_security_group_id
+  key_name                         = var.key_name
+  node_instance_types              = var.node_instance_types
+  node_desired_size                = var.node_desired_size
+  node_min_size                    = var.node_min_size
+  node_max_size                    = var.node_max_size
+  cluster_addons                   = var.cluster_addons
+  enable_vpc_cni_prefix_delegation = var.enable_vpc_cni_prefix_delegation
+  vpc_cni_warm_prefix_target       = var.vpc_cni_warm_prefix_target
 
   depends_on = [
     module.route_tables,
