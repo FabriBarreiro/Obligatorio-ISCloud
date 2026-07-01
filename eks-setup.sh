@@ -432,6 +432,31 @@ wait_for_deployment_local() {
   kubectl rollout status deployment "${deployment}" -n "${namespace}" --timeout="${timeout}"
 }
 
+# Debug function for deployment in a namespace
+debug_deployment_local() {
+  local namespace="$1"
+  local deployment="$2"
+  local selector=""
+
+  echo "======================================"
+  echo "Debug deployment ${namespace}/${deployment}"
+  echo "======================================"
+  kubectl get deployment -n "${namespace}" "${deployment}" -o wide || true
+  kubectl describe deployment -n "${namespace}" "${deployment}" || true
+
+  selector="$(kubectl get deployment -n "${namespace}" "${deployment}" -o jsonpath='{.spec.selector.matchLabels}' 2>/dev/null || true)"
+  echo "Selector deployment: ${selector}"
+
+  echo "Pods del namespace ${namespace}:"
+  kubectl get pods -n "${namespace}" -o wide || true
+
+  echo "Eventos recientes en ${namespace}:"
+  kubectl get events -n "${namespace}" --sort-by=.lastTimestamp | tail -80 || true
+
+  echo "Logs recientes del deployment ${deployment}:"
+  kubectl logs -n "${namespace}" deployment/"${deployment}" --all-containers=true --tail=120 || true
+}
+
 echo "======================================"
 echo "Ejecutando setup Kubernetes/Helm local"
 echo "======================================"
@@ -560,10 +585,6 @@ wait_for_deployment_local "kube-system" "aws-load-balancer-controller" "300s"
 # Se eliminan los webhooks de admision para evitar timeouts al crear Services/Ingress.
 kubectl delete mutatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found=true
 kubectl delete validatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found=true
-kubectl delete job -n monitoring monitoring-kube-prometheus-admission-create --ignore-not-found=true
-kubectl delete job -n monitoring monitoring-kube-prometheus-admission-patch --ignore-not-found=true
-kubectl delete validatingwebhookconfiguration monitoring-kube-prometheus-admission --ignore-not-found=true
-kubectl delete mutatingwebhookconfiguration monitoring-kube-prometheus-admission --ignore-not-found=true
 
 echo "======================================"
 echo "Instalando Cluster Autoscaler"
@@ -600,8 +621,22 @@ helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
   --timeout 15m \
   -f "${MONITORING_VALUES_FILE}"
 
-wait_for_deployment_local "monitoring" "monitoring-grafana" "600s"
-wait_for_deployment_local "monitoring" "monitoring-kube-prometheus-operator" "600s"
+# Los values deshabilitan admissionWebhooks y TLS del Prometheus Operator.
+# Por lo tanto, no se crea manualmente monitoring-kube-prometheus-admission.
+# Se eliminan webhooks admission residuales de ejecuciones anteriores para evitar timeouts.
+kubectl delete validatingwebhookconfiguration monitoring-kube-prometheus-admission --ignore-not-found=true
+kubectl delete mutatingwebhookconfiguration monitoring-kube-prometheus-admission --ignore-not-found=true
+
+if ! wait_for_deployment_local "monitoring" "monitoring-grafana" "600s"; then
+  debug_deployment_local "monitoring" "monitoring-grafana"
+  exit 1
+fi
+
+if ! wait_for_deployment_local "monitoring" "monitoring-kube-prometheus-operator" "600s"; then
+  debug_deployment_local "monitoring" "monitoring-kube-prometheus-operator"
+  echo "ERROR: Prometheus Operator no quedo disponible. Revisar los eventos/logs anteriores."
+  exit 1
+fi
 
 EKS_NODE_SG_ID="$(aws eks describe-cluster \
   --no-cli-pager \
