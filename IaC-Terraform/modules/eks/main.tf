@@ -1,11 +1,8 @@
 
-data "aws_iam_role" "lab_role" {
-  name = "LabRole"
-}
 
 resource "aws_eks_cluster" "eks_cluster" {
   name     = var.cluster_name
-  role_arn = data.aws_iam_role.lab_role.arn
+  role_arn = var.eks_role_arn
   version  = var.kubernetes_version
 
   access_config {
@@ -53,10 +50,28 @@ resource "aws_launch_template" "eks_nodes_launch_template" {
   }
 }
 
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name                = aws_eks_cluster.eks_cluster.name
+  addon_name                  = "vpc-cni"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  configuration_values = var.enable_vpc_cni_prefix_delegation ? jsonencode({
+    env = {
+      ENABLE_PREFIX_DELEGATION = "true"
+      WARM_PREFIX_TARGET       = tostring(var.vpc_cni_warm_prefix_target)
+    }
+  }) : null
+
+  depends_on = [
+    aws_eks_cluster.eks_cluster
+  ]
+}
+
 resource "aws_eks_node_group" "eks_node_group" {
   cluster_name    = aws_eks_cluster.eks_cluster.name
   node_group_name = "${var.cluster_name}-node-group"
-  node_role_arn   = data.aws_iam_role.lab_role.arn
+  node_role_arn   = var.eks_role_arn
   subnet_ids      = var.private_subnet_ids
 
   instance_types = var.node_instance_types
@@ -86,6 +101,7 @@ resource "aws_eks_node_group" "eks_node_group" {
 
   depends_on = [
     aws_eks_cluster.eks_cluster,
+    aws_eks_addon.vpc_cni,
     aws_launch_template.eks_nodes_launch_template
   ]
 }
@@ -111,7 +127,7 @@ resource "aws_autoscaling_group_tag" "cluster_autoscaler_cluster" {
 }
 
 resource "aws_eks_addon" "eks_addons" {
-  for_each = toset(var.cluster_addons)
+  for_each = toset([for addon in var.cluster_addons : addon if addon != "vpc-cni"])
 
   cluster_name                = aws_eks_cluster.eks_cluster.name
   addon_name                  = each.value

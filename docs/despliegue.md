@@ -43,6 +43,8 @@ terraform apply
 
 Al finalizar este paso estarán disponibles los recursos principales de AWS, incluyendo la VPC, el clúster Amazon EKS, Amazon ECR, Amazon ElastiCache y el resto de la infraestructura necesaria.
 
+Dentro de este paso también queda configurado el add-on de Amazon VPC CNI con **prefix delegation**, lo que permite mejorar la asignación de direcciones IP para los pods desde el momento en que se crea el clúster y antes de aprovisionar el node group.
+
 ---
 
 # Paso 2 - Configurar el clúster EKS
@@ -60,11 +62,12 @@ Entre las principales tareas realizadas se encuentran:
 - Configuración del acceso al clúster mediante `kubeconfig`.
 - Validación de herramientas y credenciales de AWS.
 - Instalación del Amazon EBS CSI Driver.
+- Validación de la disponibilidad del VPC CNI previamente configurado por Terraform.
 - Creación de la StorageClass utilizada por los volúmenes persistentes.
 - Instalación de Metrics Server.
 - Instalación del AWS Load Balancer Controller.
 - Instalación del Cluster Autoscaler.
-- Instalación del stack de monitoreo mediante Prometheus y Grafana utilizando Helm.
+- Instalación del stack de monitoreo mediante Prometheus, Grafana, Alertmanager, kube-state-metrics y node-exporter utilizando Helm.
 - Verificación del estado de todos los componentes instalados.
 - Obtención de la URL y credenciales iniciales de Grafana.
 
@@ -97,6 +100,8 @@ Las tareas realizadas son:
 11. Esperar la creación del Application Load Balancer.
 12. Mostrar la URL pública del frontend.
 
+El frontend se publica mediante un Ingress de Kubernetes procesado por AWS Load Balancer Controller. Este componente crea un Application Load Balancer público en AWS y lo asocia al Service `frontend-external`, expuesto como NodePort, para dirigir el tráfico hacia los pods del frontend.
+
 ---
 
 # Acceso a la aplicación
@@ -104,6 +109,48 @@ Las tareas realizadas son:
 Al finalizar el despliegue, el script `deploy-eks.sh` espera a que el **Application Load Balancer** sea creado por AWS y muestra automáticamente la URL pública desde la cual es posible acceder al frontend de la aplicación.
 
 Asimismo, durante la ejecución de `eks-setup.sh` se informa la URL de acceso a **Grafana**, junto con las credenciales iniciales para acceder al panel de monitoreo.
+
+---
+
+# Validaciones posteriores al despliegue
+
+Luego de ejecutar el despliegue completo se recomienda validar el estado general de la solución con los siguientes comandos:
+
+```bash
+kubectl get nodes
+kubectl get pods
+kubectl get svc
+kubectl get ingress
+kubectl get hpa
+kubectl get targetgroupbindings -A
+```
+
+Para verificar que el frontend quedó publicado correctamente por el Application Load Balancer:
+
+```bash
+FRONTEND_URL="http://$(kubectl get ingress frontend-alb -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
+echo "$FRONTEND_URL"
+curl -I "$FRONTEND_URL"
+```
+
+Para validar que el VPC CNI quedó configurado con prefix delegation:
+
+```bash
+kubectl -n kube-system get daemonset aws-node -o yaml | grep -A3 ENABLE_PREFIX_DELEGATION
+```
+
+El valor esperado es `true`.
+
+También se puede validar el estado del add-on desde AWS CLI:
+
+```bash
+aws eks describe-addon \
+  --cluster-name obligatorio-iscloud-prod-eks \
+  --addon-name vpc-cni \
+  --region us-east-1 \
+  --query 'addon.configurationValues' \
+  --output text
+```
 
 ---
 

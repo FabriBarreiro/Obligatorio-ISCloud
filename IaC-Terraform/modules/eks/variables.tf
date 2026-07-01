@@ -1,5 +1,3 @@
-
-
 variable "project_name" {
   description = "Nombre del proyecto utilizado para nombrar recursos asociados al cluster EKS."
   type        = string
@@ -25,7 +23,6 @@ variable "private_subnet_ids" {
   description = "IDs de las subnets privadas donde se desplegarán el cluster EKS y los worker nodes."
   type        = list(string)
 }
-
 
 variable "eks_cluster_security_group_id" {
   description = "ID del Security Group adicional asociado al control plane del cluster EKS."
@@ -81,4 +78,16 @@ variable "cluster_addons" {
     "coredns",
     "kube-proxy"
   ]
+}
+
+variable "enable_vpc_cni_prefix_delegation" {
+  description = "Habilita prefix delegation en el add-on VPC CNI para aumentar la cantidad de IPs disponibles para pods por nodo."
+  type        = bool
+  default     = true
+}
+
+variable "vpc_cni_warm_prefix_target" {
+  description = "Cantidad de prefijos IPv4 /28 que el VPC CNI mantiene disponibles por nodo."
+  type        = number
+  default     = 1
 }

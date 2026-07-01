@@ -1,5 +1,3 @@
-
-
 # Docker - Build y Push de Microservicios
 
 Esta sección contiene el script utilizado para construir las imágenes Docker de los microservicios de la aplicación y publicarlas en Amazon ECR.
@@ -39,13 +37,25 @@ failed to connect to the docker API at unix:///var/run/docker.sock
 
 Como los nodos de EKS utilizan instancias `t3.medium`, la arquitectura esperada es `linux/amd64`.
 
-Si el build se ejecuta desde una Mac con Apple Silicon, se recomienda forzar la arquitectura:
+El script utiliza `docker buildx build` con la variable `TARGET_PLATFORM`, cuyo valor por defecto es:
 
 ```bash
-DOCKER_DEFAULT_PLATFORM=linux/amd64 ./docker/build-and-push.sh
+TARGET_PLATFORM=linux/amd64
 ```
 
-Esto evita problemas de compatibilidad al construir imágenes desde una máquina ARM y ejecutarlas luego en nodos x86_64.
+Esto permite construir y publicar imágenes compatibles con los worker nodes de EKS aunque el build se ejecute desde una Mac con Apple Silicon.
+
+El script no realiza un `docker build` local tradicional seguido de `docker push`, sino que utiliza:
+
+```bash
+docker buildx build \
+  --platform "$TARGET_PLATFORM" \
+  --push \
+  -t "$IMAGE_URI" \
+  "$APP_DIR/$SERVICE_PATH"
+```
+
+De esta forma, cada imagen se construye para la plataforma definida y se publica directamente en Amazon ECR.
 
 ## Ejecución del script
 
@@ -55,38 +65,63 @@ Desde la raíz del proyecto ejecutar:
 ./docker/build-and-push.sh
 ```
 
-En Mac con Apple Silicon se recomienda:
+Por defecto el script construye para `linux/amd64`. Si fuera necesario cambiar la plataforma destino, se puede sobrescribir la variable `TARGET_PLATFORM`:
 
 ```bash
-DOCKER_DEFAULT_PLATFORM=linux/amd64 ./docker/build-and-push.sh
+TARGET_PLATFORM=linux/amd64 ./docker/build-and-push.sh
 ```
 
 El script realiza las siguientes acciones:
 
-1. Obtiene la cuenta AWS y región configuradas.
-2. Realiza login contra Amazon ECR.
-3. Construye cada imagen Docker desde su directorio correspondiente.
-4. Etiqueta la imagen con el repositorio ECR correspondiente.
-5. Publica la imagen usando `docker push`.
-6. Informa qué servicios fueron subidos correctamente y cuáles fallaron.
+1. Define valores por defecto para `AWS_REGION`, `PROJECT_NAME`, `ENVIRONMENT` y `TARGET_PLATFORM`.
+2. Obtiene el Account ID de AWS mediante `aws sts get-caller-identity`.
+3. Construye la URL del registry ECR.
+4. Valida que `docker buildx` esté disponible.
+5. Crea o reutiliza el builder `obligatorio-iscloud-builder`.
+6. Realiza login contra Amazon ECR.
+7. Recorre la lista de microservicios definidos en el script.
+8. Construye cada imagen con `docker buildx build --platform "$TARGET_PLATFORM" --push`.
+9. Publica cada imagen directamente en el repositorio ECR correspondiente con el tag `latest`.
+10. Informa qué servicios fueron subidos correctamente y cuáles fallaron.
+
+### Variables utilizadas por el script
+
+| Variable | Valor por defecto | Descripción |
+|---|---|---|
+| `AWS_REGION` | `us-east-1` | Región AWS donde se encuentran los repositorios ECR |
+| `PROJECT_NAME` | `obligatorio-iscloud` | Nombre base del proyecto utilizado para formar el nombre de los repositorios |
+| `ENVIRONMENT` | `prod` | Ambiente utilizado para formar el nombre de los repositorios |
+| `TARGET_PLATFORM` | `linux/amd64` | Plataforma destino utilizada por Docker Buildx |
+
+El nombre final de cada repositorio se construye con el formato:
+
+```text
+<PROJECT_NAME>-<ENVIRONMENT>-<SERVICE_NAME>
+```
+
+Ejemplo:
+
+```text
+obligatorio-iscloud-prod-frontend
+```
 
 ## Servicios construidos
 
 El proceso contempla los siguientes microservicios:
 
-| Servicio | Repositorio ECR esperado |
-|---|---|
-| frontend | obligatorio-iscloud-prod-frontend |
-| cartservice | obligatorio-iscloud-prod-cartservice |
-| checkoutservice | obligatorio-iscloud-prod-checkoutservice |
-| currencyservice | obligatorio-iscloud-prod-currencyservice |
-| emailservice | obligatorio-iscloud-prod-emailservice |
-| paymentservice | obligatorio-iscloud-prod-paymentservice |
-| productcatalogservice | obligatorio-iscloud-prod-productcatalogservice |
-| recommendationservice | obligatorio-iscloud-prod-recommendationservice |
-| shippingservice | obligatorio-iscloud-prod-shippingservice |
-| adservice | obligatorio-iscloud-prod-adservice |
-| loadgenerator | obligatorio-iscloud-prod-loadgenerator |
+| Servicio | Ruta relativa dentro de `src` | Repositorio ECR esperado |
+|---|---|---|
+| frontend | `frontend` | obligatorio-iscloud-prod-frontend |
+| cartservice | `cartservice/src` | obligatorio-iscloud-prod-cartservice |
+| checkoutservice | `checkoutservice` | obligatorio-iscloud-prod-checkoutservice |
+| currencyservice | `currencyservice` | obligatorio-iscloud-prod-currencyservice |
+| emailservice | `emailservice` | obligatorio-iscloud-prod-emailservice |
+| paymentservice | `paymentservice` | obligatorio-iscloud-prod-paymentservice |
+| productcatalogservice | `productcatalogservice` | obligatorio-iscloud-prod-productcatalogservice |
+| recommendationservice | `recommendationservice` | obligatorio-iscloud-prod-recommendationservice |
+| shippingservice | `shippingservice` | obligatorio-iscloud-prod-shippingservice |
+| adservice | `adservice` | obligatorio-iscloud-prod-adservice |
+| loadgenerator | `loadgenerator` | obligatorio-iscloud-prod-loadgenerator |
 
 Cada imagen se publica con el tag:
 
@@ -140,83 +175,36 @@ docker ps
 
 ### Problemas por arquitectura ARM/AMD64
 
-En Mac con Apple Silicon pueden aparecer warnings similares a:
+En Mac con Apple Silicon, construir imágenes sin especificar plataforma puede generar imágenes ARM que luego no ejecutan correctamente en los nodos EKS `t3.medium`, ya que estos utilizan arquitectura `amd64`.
+
+El script evita este problema utilizando Docker Buildx con:
+
+```bash
+TARGET_PLATFORM=linux/amd64
+```
+
+y ejecutando:
+
+```bash
+docker buildx build --platform "$TARGET_PLATFORM" --push
+```
+
+Para validar que Buildx esté disponible:
+
+```bash
+docker buildx version
+```
+
+El script crea o reutiliza automáticamente el builder:
 
 ```text
-The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64/v8)
+obligatorio-iscloud-builder
 ```
 
-Para construir imágenes compatibles con los nodos EKS `t3.medium`, se debe utilizar una VM Docker con arquitectura `x86_64` o un builder multi-arquitectura.
-
-En Mac con Apple Silicon y Colima, el camino más simple para este proyecto es levantar Colima emulando `x86_64`:
+Si se desea recrear el builder manualmente:
 
 ```bash
-colima stop
-colima delete
-colima start --arch x86_64 --cpu 4 --memory 8 --disk 60
-```
-
-Validar que Docker esté corriendo como `x86_64`:
-
-```bash
-docker info | grep -i architecture
-```
-
-El resultado esperado es:
-
-```text
-Architecture: x86_64
-```
-
-Luego ejecutar el build normalmente, sin forzar `DOCKER_DEFAULT_PLATFORM`:
-
-```bash
-./docker/build-and-push.sh
-```
-
-#### Fix de Colima x86_64 en Apple Silicon
-
-Si al iniciar Colima con `--arch x86_64` aparece el error:
-
-```text
-qemu is required to emulate x86_64: qemu-img not found
-```
-
-instalar QEMU:
-
-```bash
-brew install qemu
-```
-
-Si luego aparece un error similar a:
-
-```text
-guest agent binary could not be found for Linux-x86_64
-Hint: try installing `lima-additional-guestagents` package
-```
-
-instalar los guest agents adicionales de Lima:
-
-```bash
-brew install lima-additional-guestagents
-```
-
-Después limpiar el intento fallido y volver a iniciar Colima:
-
-```bash
-colima delete
-colima start --arch x86_64 --cpu 4 --memory 8 --disk 60
-```
-
-Finalmente validar la arquitectura:
-
-```bash
-docker info | grep -i architecture
-```
-
-Si devuelve `Architecture: x86_64`, ya se puede ejecutar:
-
-```bash
+docker buildx rm obligatorio-iscloud-builder
 ./docker/build-and-push.sh
 ```
 
@@ -230,10 +218,10 @@ Ejemplo:
 ERROR: Could not find a version that satisfies the requirement google-python-cloud-debugger==2.18
 ```
 
-Primero probar forzando arquitectura `linux/amd64`:
+Primero validar que el script esté construyendo para `linux/amd64`:
 
 ```bash
-DOCKER_DEFAULT_PLATFORM=linux/amd64 ./docker/build-and-push.sh
+TARGET_PLATFORM=linux/amd64 ./docker/build-and-push.sh
 ```
 
 Si el error persiste, revisar el archivo:
@@ -274,11 +262,4 @@ Al finalizar correctamente, cada servicio debería mostrar un mensaje similar a:
 OK: frontend subido correctamente.
 ```
 
-Si algún servicio falla, el script lo informa al final:
-
-```text
-Algunos servicios fallaron:
- - recommendationservice
-```
-
-En ese caso, se debe revisar el error puntual del build de ese servicio y volver a ejecutar el script luego de corregirlo.
+Si algún servicio falla, el script lo guarda en el arreglo `FAILED`, lo informa al final y termina con código de error:
