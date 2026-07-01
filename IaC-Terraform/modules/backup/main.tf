@@ -1,3 +1,9 @@
+data "aws_caller_identity" "current" {}
+
+locals {
+  labrole_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/LabRole"
+}
+
 resource "aws_backup_vault" "main" {
   name = "${var.project_name}-${var.environment}-backup-vault"
 
@@ -6,39 +12,6 @@ resource "aws_backup_vault" "main" {
     Component   = "backup"
     Environment = var.environment
   }
-}
-
-resource "aws_iam_role" "backup_role" {
-  name = "${var.project_name}-${var.environment}-aws-backup-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "backup.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-aws-backup-role"
-    Component   = "backup"
-    Environment = var.environment
-  }
-}
-
-resource "aws_iam_role_policy_attachment" "backup_policy" {
-  role       = aws_iam_role.backup_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup"
-}
-
-resource "aws_iam_role_policy_attachment" "restore_policy" {
-  role       = aws_iam_role.backup_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForRestores"
 }
 
 resource "aws_backup_plan" "main" {
@@ -62,7 +35,7 @@ resource "aws_backup_plan" "main" {
 }
 
 resource "aws_backup_selection" "tagged_ebs" {
-  iam_role_arn = aws_iam_role.backup_role.arn
+  iam_role_arn = local.labrole_arn
   name         = "${var.project_name}-${var.environment}-tagged-ebs-selection"
   plan_id      = aws_backup_plan.main.id
 

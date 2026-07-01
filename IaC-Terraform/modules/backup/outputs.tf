@@ -7,5 +7,5 @@ output "backup_plan_id" {
 }
 
 output "backup_role_arn" {
-  value = aws_iam_role.backup_role.arn
+  value = local.labrole_arn
 }
