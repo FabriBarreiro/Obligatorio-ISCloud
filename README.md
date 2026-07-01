@@ -109,6 +109,11 @@ Obligatorio-ISCloud/
 │
 └── README.md                           # Documentación principal del proyecto
 ```
+## Uso de Inteligencia Artificial
+
+Durante el desarrollo de este proyecto se utilizaron herramientas de Inteligencia Artificial, principalmente ChatGPT y Codex, como apoyo para la revisión y mejora de fragmentos de código, infraestructura como código (IaC) y la redacción de la documentación técnica.
+
+Todas las soluciones implementadas fueron analizadas, adaptadas y validadas por los integrantes del equipo antes de su incorporación al proyecto, asegurando que cada decisión técnica fuera comprendida y cumpliera con los objetivos planteados.
 
 
 # Autores
