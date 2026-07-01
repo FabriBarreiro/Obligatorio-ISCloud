@@ -9,8 +9,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-${SCRIPT_DIR}}"
 TF_DIR="${TF_DIR:-${REPO_ROOT}/IaC-Terraform/environments/prod}"
 MONITORING_VALUES_FILE="${MONITORING_VALUES_FILE:-${REPO_ROOT}/k8s/monitoring/kube-prometheus-stack-values.yaml}"
+LOKI_VALUES_FILE="${LOKI_VALUES_FILE:-${REPO_ROOT}/k8s/monitoring/loki-values.yaml}"
 METRICS_SERVER_DIR="${METRICS_SERVER_DIR:-${REPO_ROOT}/k8s/metrics-server}"
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
+RECYCLE_NODEGROUPS_FOR_PREFIX_DELEGATION="${RECYCLE_NODEGROUPS_FOR_PREFIX_DELEGATION:-true}"
+RECYCLE_NODES_BY_TERMINATION_FOR_PREFIX_DELEGATION="${RECYCLE_NODES_BY_TERMINATION_FOR_PREFIX_DELEGATION:-true}"
 export AWS_PAGER=""
 export AWS_CLI_AUTO_PROMPT=off
 
@@ -55,6 +58,12 @@ if [[ ! -f "${MONITORING_VALUES_FILE}" ]]; then
   exit 1
 fi
 
+if [[ ! -f "${LOKI_VALUES_FILE}" ]]; then
+  echo "ERROR: no existe el archivo de values de Loki: ${LOKI_VALUES_FILE}"
+  echo "Crear el archivo k8s/monitoring/loki-values.yaml antes de ejecutar este script."
+  exit 1
+fi
+
 if [[ ! -f "${METRICS_SERVER_DIR}/components.yaml" ]]; then
   echo "ERROR: No existe ${METRICS_SERVER_DIR}/components.yaml"
   exit 1
@@ -83,6 +92,9 @@ echo "Setup EKS por SSM desde Bastion"
 echo "======================================"
 echo "Terraform dir: ${TF_DIR}"
 echo "Monitoring values: ${MONITORING_VALUES_FILE}"
+echo "Loki values: ${LOKI_VALUES_FILE}"
+echo "Recycle nodegroups for Prefix Delegation: ${RECYCLE_NODEGROUPS_FOR_PREFIX_DELEGATION}"
+echo "Recycle nodes by termination for Prefix Delegation: ${RECYCLE_NODES_BY_TERMINATION_FOR_PREFIX_DELEGATION}"
 echo "Cluster EKS: ${CLUSTER_NAME}"
 echo "Region: ${REGION}"
 echo "Account ID local: ${AWS_ACCOUNT_ID}"
@@ -457,6 +469,130 @@ debug_deployment_local() {
   kubectl logs -n "${namespace}" deployment/"${deployment}" --all-containers=true --tail=120 || true
 }
 
+# Wait for nodegroup update function
+wait_for_nodegroup_update() {
+  local nodegroup_name="$1"
+  local update_id="$2"
+  local status=""
+
+  echo "Esperando update del node group ${nodegroup_name}. Update ID: ${update_id}"
+  for i in {1..90}; do
+    status="$(aws eks describe-update \
+      --no-cli-pager \
+      --cluster-name "${CLUSTER_NAME}" \
+      --nodegroup-name "${nodegroup_name}" \
+      --update-id "${update_id}" \
+      --region "${REGION}" \
+      --query 'update.status' \
+      --output text 2>/dev/null || echo Unknown)"
+
+    echo "Estado update nodegroup ${nodegroup_name} intento ${i}/90: ${status}"
+
+    case "${status}" in
+      Successful)
+        return 0
+        ;;
+      Failed|Cancelled)
+        echo "WARN: update del node group ${nodegroup_name} termino en estado ${status}."
+        return 1
+        ;;
+      *)
+        sleep 20
+        ;;
+    esac
+  done
+
+  echo "WARN: timeout esperando update del node group ${nodegroup_name}."
+  return 1
+}
+
+# Wait for a minimum number of Ready nodes
+wait_for_ready_nodes_count() {
+  local expected_count="$1"
+  local timeout_attempts="${2:-90}"
+  local ready_count="0"
+
+  echo "Esperando al menos ${expected_count} nodos Ready..."
+  for i in $(seq 1 "${timeout_attempts}"); do
+    ready_count="$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready" {count++} END {print count+0}')"
+    echo "Nodos Ready: ${ready_count}/${expected_count}. Intento ${i}/${timeout_attempts}"
+
+    if [[ "${ready_count}" -ge "${expected_count}" ]]; then
+      kubectl get nodes
+      return 0
+    fi
+
+    sleep 20
+  done
+
+  echo "WARN: timeout esperando ${expected_count} nodos Ready."
+  kubectl get nodes || true
+  return 1
+}
+
+recycle_nodes_by_termination_for_prefix_delegation() {
+  local nodes_to_recycle=""
+  local desired_ready_count="0"
+  local provider_id=""
+  local instance_id=""
+
+  nodes_to_recycle="$(kubectl get nodes -o jsonpath='{range .items[?(@.status.capacity.pods=="17")]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)"
+
+  if [[ -z "${nodes_to_recycle}" ]]; then
+    echo "No hay nodos con maxPods=17 para reciclar por terminacion."
+    return 0
+  fi
+
+  desired_ready_count="$(kubectl get nodes --no-headers | wc -l | tr -d ' ')"
+
+  echo "Se reciclaran por terminacion los nodos que siguen en maxPods=17:"
+  echo "${nodes_to_recycle}"
+  echo "Cantidad objetivo de nodos Ready luego de cada reemplazo: ${desired_ready_count}"
+
+  while IFS= read -r NODE_NAME; do
+    if [[ -z "${NODE_NAME}" ]]; then
+      continue
+    fi
+
+    if ! kubectl get node "${NODE_NAME}" >/dev/null 2>&1; then
+      echo "Nodo ${NODE_NAME} ya no existe. Se omite."
+      continue
+    fi
+
+    provider_id="$(kubectl get node "${NODE_NAME}" -o jsonpath='{.spec.providerID}' 2>/dev/null || true)"
+    instance_id="${provider_id##*/}"
+
+    if [[ -z "${instance_id}" || "${instance_id}" == "${provider_id}" ]]; then
+      echo "WARN: no se pudo obtener instance ID para el nodo ${NODE_NAME}. providerID=${provider_id}"
+      continue
+    fi
+
+    echo "======================================"
+    echo "Reciclando nodo ${NODE_NAME} / instancia ${instance_id}"
+    echo "======================================"
+
+    echo "Cordoneando nodo ${NODE_NAME}..."
+    kubectl cordon "${NODE_NAME}" || true
+
+    echo "Drenando nodo ${NODE_NAME}..."
+    if ! kubectl drain "${NODE_NAME}" --ignore-daemonsets --delete-emptydir-data --force --timeout=10m; then
+      echo "WARN: drain de ${NODE_NAME} no completo correctamente. Se continua con terminacion porque el objetivo es recrear el nodo del lab."
+    fi
+
+    echo "Terminando instancia EC2 ${instance_id} para que el Managed Node Group/ASG cree un nodo nuevo..."
+    aws ec2 terminate-instances \
+      --no-cli-pager \
+      --region "${REGION}" \
+      --instance-ids "${instance_id}" >/dev/null || true
+
+    echo "Esperando reemplazo del nodo ${NODE_NAME}..."
+    wait_for_ready_nodes_count "${desired_ready_count}" 90 || true
+
+    echo "Capacidad de pods luego de reciclar ${NODE_NAME}:"
+    kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" maxPods="}{.status.capacity.pods}{" allocatable="}{.status.allocatable.pods}{"\n"}{end}' || true
+  done <<< "${nodes_to_recycle}"
+}
+
 echo "======================================"
 echo "Ejecutando setup Kubernetes/Helm local"
 echo "======================================"
@@ -468,6 +604,129 @@ aws eks update-kubeconfig \
 
 echo "Validando acceso local al cluster..."
 kubectl get nodes
+
+# ==========================================================
+# AWS VPC CNI - Prefix Delegation
+# ==========================================================
+echo "======================================"
+echo "Configurando AWS VPC CNI Prefix Delegation"
+echo "======================================"
+
+if kubectl get daemonset aws-node -n kube-system >/dev/null 2>&1; then
+  echo "DaemonSet aws-node encontrado. Habilitando Prefix Delegation para aumentar densidad de pods por nodo..."
+
+  echo "Intentando persistir Prefix Delegation en el add-on administrado vpc-cni si existe..."
+  if aws eks describe-addon --no-cli-pager --cluster-name "${CLUSTER_NAME}" --addon-name vpc-cni --region "${REGION}" >/dev/null 2>&1; then
+    aws eks update-addon \
+      --no-cli-pager \
+      --cluster-name "${CLUSTER_NAME}" \
+      --addon-name vpc-cni \
+      --region "${REGION}" \
+      --configuration-values '{"env":{"ENABLE_PREFIX_DELEGATION":"true","WARM_PREFIX_TARGET":"1"}}' \
+      --resolve-conflicts OVERWRITE >/dev/null || true
+  else
+    echo "WARN: el add-on vpc-cni no aparece como EKS add-on administrado. Se configurara directamente el DaemonSet aws-node."
+  fi
+
+  kubectl set env daemonset aws-node -n kube-system ENABLE_PREFIX_DELEGATION=true
+  kubectl set env daemonset aws-node -n kube-system WARM_PREFIX_TARGET=1
+  kubectl set env daemonset aws-node -n kube-system WARM_IP_TARGET- || true
+  kubectl set env daemonset aws-node -n kube-system MINIMUM_IP_TARGET- || true
+
+  echo "Reiniciando aws-node para aplicar Prefix Delegation..."
+  kubectl rollout restart daemonset aws-node -n kube-system
+  kubectl rollout status daemonset aws-node -n kube-system --timeout=300s
+
+  echo "Variables actuales de aws-node relacionadas a Prefix Delegation:"
+  kubectl describe daemonset aws-node -n kube-system | grep -E "ENABLE_PREFIX_DELEGATION|WARM_PREFIX_TARGET" || true
+
+  echo "Capacidad actual de pods por nodo:"
+  kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" maxPods="}{.status.capacity.pods}{" allocatable="}{.status.allocatable.pods}{"\n"}{end}'
+
+  if kubectl get nodes -o jsonpath='{range .items[*]}{.status.capacity.pods}{"\n"}{end}' | grep -q '^17$'; then
+    echo "WARN: uno o mas nodos siguen anunciando maxPods=17."
+    echo "Prefix Delegation quedo habilitado en el AWS VPC CNI, pero puede ser necesario reciclar/recrear nodos para que kubelet anuncie mayor capacidad."
+
+    if [[ "${RECYCLE_NODEGROUPS_FOR_PREFIX_DELEGATION}" == "true" ]]; then
+      echo "RECYCLE_NODEGROUPS_FOR_PREFIX_DELEGATION=true. Se intentara forzar update de los Managed Node Groups para reciclar nodos."
+
+      NODEGROUPS="$(aws eks list-nodegroups \
+        --no-cli-pager \
+        --cluster-name "${CLUSTER_NAME}" \
+        --region "${REGION}" \
+        --query 'nodegroups[]' \
+        --output text 2>/dev/null || true)"
+
+      if [[ -z "${NODEGROUPS}" || "${NODEGROUPS}" == "None" ]]; then
+        echo "WARN: no se pudieron obtener Managed Node Groups para reciclar automaticamente."
+      else
+        for NODEGROUP_NAME in ${NODEGROUPS}; do
+          echo "Forzando update del node group: ${NODEGROUP_NAME}"
+          UPDATE_ERROR_FILE="$(mktemp)"
+          UPDATE_ID="$(aws eks update-nodegroup-version \
+            --no-cli-pager \
+            --cluster-name "${CLUSTER_NAME}" \
+            --nodegroup-name "${NODEGROUP_NAME}" \
+            --region "${REGION}" \
+            --force \
+            --query 'update.id' \
+            --output text 2>"${UPDATE_ERROR_FILE}" || true)"
+
+          if [[ -n "${UPDATE_ID}" && "${UPDATE_ID}" != "None" ]]; then
+            wait_for_nodegroup_update "${NODEGROUP_NAME}" "${UPDATE_ID}" || true
+          else
+            echo "WARN: no se pudo iniciar update para ${NODEGROUP_NAME}. Detalle:"
+            cat "${UPDATE_ERROR_FILE}" || true
+            echo "Puede ocurrir si no hay una nueva version/AMI disponible o si ya hay un update en progreso."
+          fi
+
+          rm -f "${UPDATE_ERROR_FILE}"
+        done
+
+        echo "Esperando que los nodos vuelvan a estar Ready luego del reciclado/update..."
+        for i in {1..60}; do
+          NOT_READY_COUNT="$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 != "Ready" {count++} END {print count+0}')"
+          if [[ "${NOT_READY_COUNT}" == "0" ]]; then
+            echo "Todos los nodos estan Ready."
+            break
+          fi
+          echo "Aun hay ${NOT_READY_COUNT} nodos no Ready. Intento ${i}/60"
+          kubectl get nodes || true
+          sleep 20
+        done
+
+        echo "Capacidad de pods por nodo luego del intento de reciclado/update:"
+        kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" maxPods="}{.status.capacity.pods}{" allocatable="}{.status.allocatable.pods}{"\n"}{end}'
+
+        if kubectl get nodes -o jsonpath='{range .items[*]}{.status.capacity.pods}{"\n"}{end}' | grep -q '^17$'; then
+          echo "WARN: algun nodo sigue en maxPods=17 incluso despues del intento de update del node group."
+
+          if [[ "${RECYCLE_NODES_BY_TERMINATION_FOR_PREFIX_DELEGATION}" == "true" ]]; then
+            echo "RECYCLE_NODES_BY_TERMINATION_FOR_PREFIX_DELEGATION=true. Se reciclaran nodos maxPods=17 terminando sus instancias EC2 una por una."
+            recycle_nodes_by_termination_for_prefix_delegation
+          else
+            echo "RECYCLE_NODES_BY_TERMINATION_FOR_PREFIX_DELEGATION=false. Se omite reciclado por terminacion."
+          fi
+
+          if kubectl get nodes -o jsonpath='{range .items[*]}{.status.capacity.pods}{"\n"}{end}' | grep -q '^17$'; then
+            echo "WARN: algun nodo sigue en maxPods=17 incluso despues del reciclado."
+            echo "En ese caso se requiere ajustar el node group/launch template para que kubelet arranque con un maxPods mayor o recrear el node group desde Terraform."
+          fi
+        fi
+      fi
+    else
+      echo "RECYCLE_NODEGROUPS_FOR_PREFIX_DELEGATION=false. Se omite update automatico de node groups."
+      if [[ "${RECYCLE_NODES_BY_TERMINATION_FOR_PREFIX_DELEGATION}" == "true" ]]; then
+        echo "RECYCLE_NODES_BY_TERMINATION_FOR_PREFIX_DELEGATION=true. Se reciclaran nodos maxPods=17 terminando sus instancias EC2 una por una."
+        recycle_nodes_by_termination_for_prefix_delegation
+      else
+        echo "RECYCLE_NODES_BY_TERMINATION_FOR_PREFIX_DELEGATION=false. Se omite reciclado por terminacion."
+      fi
+    fi
+  fi
+else
+  echo "WARN: no se encontro daemonset aws-node en kube-system. Se omite configuracion de Prefix Delegation."
+fi
 
 echo "======================================"
 echo "Validando EBS CSI Driver para persistencia"
@@ -611,6 +870,58 @@ wait_for_deployment_local "kube-system" "cluster-autoscaler-aws-cluster-autoscal
 wait_for_deployment_local "kube-system" "cluster-autoscaler" "300s"
 
 echo "======================================"
+echo "Instalando Loki para logs centralizados"
+echo "======================================"
+helm repo add grafana https://grafana.github.io/helm-charts || true
+helm repo update
+
+helm upgrade --install loki grafana/loki \
+  --namespace monitoring \
+  --create-namespace \
+  --timeout 15m \
+  -f "${LOKI_VALUES_FILE}"
+
+echo "Esperando Loki..."
+if kubectl get statefulset -n monitoring loki >/dev/null 2>&1; then
+  kubectl rollout status statefulset/loki -n monitoring --timeout=600s
+elif kubectl get statefulset -n monitoring loki-single-binary >/dev/null 2>&1; then
+  kubectl rollout status statefulset/loki-single-binary -n monitoring --timeout=600s
+elif kubectl get deployment -n monitoring loki >/dev/null 2>&1; then
+  kubectl rollout status deployment/loki -n monitoring --timeout=600s
+else
+  echo "ERROR: no se encontro workload de Loki para validar rollout."
+  kubectl get pods -n monitoring -o wide | grep -i loki || true
+  kubectl get statefulset -n monitoring || true
+  kubectl get deployment -n monitoring || true
+  exit 1
+fi
+
+if ! kubectl get svc -n monitoring loki-gateway >/dev/null 2>&1; then
+  echo "ERROR: no se encontro el Service loki-gateway requerido por Grafana y Promtail."
+  kubectl get svc -n monitoring | grep -i loki || true
+  exit 1
+fi
+
+echo "======================================"
+echo "Instalando Promtail para recolectar logs"
+echo "======================================"
+helm upgrade --install promtail grafana/promtail \
+  --namespace monitoring \
+  --timeout 10m \
+  --set 'config.clients[0].url=http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push'
+
+echo "Esperando Promtail..."
+if ! kubectl rollout status daemonset/promtail -n monitoring --timeout=300s; then
+  echo "WARN: Promtail no quedo Ready en todos los nodos dentro del timeout."
+  echo "Esto puede ocurrir si los nodos siguen teniendo bajo limite maximo de pods o aun no fueron reciclados luego de habilitar Prefix Delegation."
+  echo "Estado de Promtail:"
+  kubectl get pods -n monitoring -l app.kubernetes.io/name=promtail -o wide || true
+  kubectl describe daemonset -n monitoring promtail || true
+  kubectl get events -A --sort-by=.lastTimestamp | grep -i promtail | tail -40 || true
+  echo "Se continua porque Promtail puede recolectar logs desde los nodos donde quedo Ready."
+fi
+
+echo "======================================"
 echo "Instalando monitoreo: Prometheus + Grafana"
 echo "======================================"
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
@@ -677,6 +988,13 @@ kubectl get pods -A
 kubectl get svc -A
 kubectl get storageclass
 kubectl get pvc -n monitoring
+
+echo "Validando Loki y Promtail..."
+kubectl get pods -n monitoring | grep -E "loki|promtail" || true
+kubectl get svc -n monitoring | grep loki || true
+kubectl get daemonset -n monitoring promtail || true
+kubectl get pvc -n monitoring | grep loki || true
+
 kubectl get svc -n monitoring monitoring-grafana
 kubectl get ingress -n monitoring
 GRAFANA_HOSTNAME=""
@@ -710,6 +1028,8 @@ fi
 kubectl get deployment -n kube-system aws-load-balancer-controller
 kubectl get deployment -n monitoring monitoring-grafana
 kubectl get deployment -n monitoring monitoring-kube-prometheus-operator
+kubectl get daemonset -n monitoring promtail || true
+kubectl get svc -n monitoring loki-gateway || true
 
 echo "======================================"
 echo "Acceso a Grafana"
