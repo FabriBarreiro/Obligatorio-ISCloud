@@ -497,6 +497,10 @@ provisioner: ebs.csi.aws.com
 parameters:
   type: gp3
   fsType: ext4
+  tagSpecification_1: "Backup=true"
+  tagSpecification_2: "Project=obligatorio-iscloud"
+  tagSpecification_3: "Environment=prod"
+  tagSpecification_4: "Component=monitoring"
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
 YAML
