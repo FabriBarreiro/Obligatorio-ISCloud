@@ -90,7 +90,7 @@ Obligatorio-ISCloud/
 │
 ├── aplicativo/
 │   └── Obligatorio-Microservicios-main/
-│       ├── src/                        # Código fuente de la aplicación
+│       ├── src/                        # Código fuente de la aplicación de microservicios
 │       └── pb/                         # Definiciones Protocol Buffers (gRPC)
 │
 ├── IaC-Terraform/
@@ -98,33 +98,36 @@ Obligatorio-ISCloud/
 │   │   └── prod/                       # Configuración del entorno de producción
 │   │
 │   └── modules/
-│       ├── ec2/                        # Instancia Bastion Host
-│       ├── ecr/                        # Repositorios Amazon ECR
-│       ├── eks/                        # Clúster Amazon EKS y Node Groups
-│       ├── elasticache/                # Redis (Amazon ElastiCache)
+│       ├── backup/                     # AWS Backup
+│       ├── ec2/                        # Bastion Host
+│       ├── ecr/                        # Amazon ECR
+│       ├── eks/                        # Amazon EKS y Node Groups
+│       ├── elasticache/                # Amazon ElastiCache (Redis)
 │       ├── igw/                        # Internet Gateway
 │       ├── natgw/                      # NAT Gateway
-│       ├── route-tables/               # Tablas de ruteo públicas y privadas
-│       ├── security-groups/            # Reglas de firewall
+│       ├── route-tables/               # Tablas de ruteo
+│       ├── security-groups/            # Security Groups
 │       ├── subnets/                    # Subredes públicas y privadas
 │       └── vpc/                        # Virtual Private Cloud
 │
-├── docker/                             # Scripts para construir y publicar imágenes en Amazon ECR
+├── docker/                             # Scripts para construir y publicar imágenes Docker
+│
+├── docs/
+│   ├── despliegue.md                   # Guía de despliegue
+│   └── DiagramaSC.drawio.png           # Diagrama de arquitectura
 │
 ├── k8s/
 │   ├── generated/                      # Manifiestos Kubernetes generados automáticamente
 │   ├── hpa/                            # Horizontal Pod Autoscaler
-│   ├── metrics-server/                 # Instalación de Metrics Server
-│   └── monitoring/                     # Recursos de monitoreo
+│   ├── metrics-server/                 # Metrics Server
+│   ├── monitoring/                     # Prometheus, Grafana y Loki
+│   └── generate-manifests.sh           # Generación automática de manifiestos
 │
-├── docs/                               # Documentación del proyecto
-│   ├── despliegue.md                   # Guía/documentación de despliegue
-│   └── DiagramaSC.drawio.png           # Diagrama de arquitectura
+├── deploy-eks.sh                       # Despliegue de la aplicación en EKS
+├── eks-setup.sh                        # Configuración inicial del clúster
 │
-├── deploy-eks.sh                       # Automatiza el despliegue de la aplicación sobre Amazon EKS
-├── eks-setup.sh                        # Configuración inicial del clúster (ALB Controller, Metrics Server, etc.)
-│
-└── README.md                           # Documentación principal del proyecto
+├── LICENSE
+└── README.md
 ```
 # Observabilidad
 
