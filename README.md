@@ -6,7 +6,10 @@ Este repositorio contiene el desarrollo del obligatorio de la materia **Implemen
 
 El proyecto consiste en la automatización del despliegue de una aplicación basada en **microservicios** sobre **Amazon Web Services (AWS)** utilizando **Terraform** como herramienta de Infraestructura como Código (IaC) y **Amazon Elastic Kubernetes Service (EKS)** como plataforma de orquestación de contenedores.
 
+
 Toda la infraestructura se encuentra completamente automatizada, permitiendo desplegar el ambiente desde cero mediante Terraform y posteriormente publicar la aplicación utilizando Docker, Amazon ECR y Kubernetes.
+
+El procedimiento completo de despliegue se encuentra documentado en [`docs/despliegue.md`](docs/despliegue.md), donde se detallan los pasos necesarios para aprovisionar la infraestructura, configurar el clúster EKS y desplegar la aplicación.
 
 ---
 
