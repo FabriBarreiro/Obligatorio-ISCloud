@@ -113,6 +113,5 @@ Obligatorio-ISCloud/
 
 # Autores
 
-Fabricio Barreiro
-
-Santiago Hoaguy
+- Fabricio Barreiro
+- Santiago Hoaguy
