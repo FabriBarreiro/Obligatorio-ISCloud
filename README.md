@@ -157,6 +157,8 @@ Como posibles mejoras futuras de la solución se identifican los siguientes punt
 
 - Incorporar NetworkPolicies para restringir la comunicación entre microservicios y aplicar un modelo de menor privilegio a nivel de red dentro del clúster.
 
+- Incorporar HPA para `currencyservice`. Durante las pruebas de estrés realizadas contra el frontend se observó que, además del propio frontend, el servicio de conversión de moneda podía verse afectado por el aumento de requests. Debido a que este microservicio participa en el flujo de visualización de productos y cálculo de precios, podría ser conveniente definir un Horizontal Pod Autoscaler específico para mejorar su respuesta ante picos de carga.
+
 - Evaluar la incorporación de trazas distribuidas para seguir el recorrido completo de una solicitud entre los distintos microservicios, identificando tiempos de respuesta, dependencias y posibles puntos de falla.
 
 ## Uso de Inteligencia Artificial
