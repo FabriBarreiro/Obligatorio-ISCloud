@@ -141,6 +141,19 @@ La aplicación no requiere una base de datos relacional, ya que el catálogo se 
 Para los componentes que requieren persistencia dentro del clúster, como Grafana, Prometheus o Loki, se utilizan PersistentVolumeClaims (PVC) en Kubernetes. Estos PVC se satisfacen mediante PersistentVolumes respaldados por Amazon EBS a través del EBS CSI Driver y la StorageClass `ebs-gp3`.
 
 Los respaldos se gestionan mediante AWS Backup sobre los volúmenes EBS etiquetados para backup. De esta forma, la persistencia real se encuentra en EBS, mientras que los PVC/PV son los objetos de Kubernetes que permiten consumir ese almacenamiento desde los pods.
+
+# Mejoras futuras
+
+Como posibles mejoras futuras de la solución se identifican los siguientes puntos:
+
+- Separar la aplicación en un namespace propio, por ejemplo `online-boutique` o `app`, en lugar de utilizar el namespace `default`. Esto permitiría mejorar la organización de los recursos, aplicar configuraciones específicas por entorno, definir límites de recursos por namespace y simplificar la administración de los manifiestos.
+
+- Incorporar reglas de `podAntiAffinity` o `topologySpreadConstraints` para distribuir las réplicas de los microservicios entre distintos nodos y Availability Zones. Esto permitiría mejorar la tolerancia a fallos, evitando que múltiples réplicas de un mismo servicio queden concentradas en un único nodo.
+
+- Incorporar NetworkPolicies para restringir la comunicación entre microservicios y aplicar un modelo de menor privilegio a nivel de red dentro del clúster.
+
+- Evaluar la incorporación de trazas distribuidas para seguir el recorrido completo de una solicitud entre los distintos microservicios, identificando tiempos de respuesta, dependencias y posibles puntos de falla.
+
 ## Uso de Inteligencia Artificial
 
 Durante el desarrollo de este proyecto se utilizaron herramientas de Inteligencia Artificial, principalmente ChatGPT y Codex, como apoyo para la revisión y mejora de fragmentos de código, infraestructura como código (IaC) y la redacción de la documentación técnica.
